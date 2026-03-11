@@ -88,13 +88,13 @@ function ConvertTo-VroActionJs {
 
     # being compiling JS file
 
-    $vroActionJs = "/**" + "`n"
+    $lines = @("/**")
 
     # add in description if available
 
     if ($InputObject.Description){
         foreach ($line in $InputObject.Description.Split("`n")){
-            $vroActionJs += "* " + $line + "`n"
+            $lines += "* " + $line
         }
     }
 
@@ -102,34 +102,32 @@ function ConvertTo-VroActionJs {
 
     if ($InputObject.InputParameters){
         foreach ($input in $InputObject.InputParameters) {
-            $vroActionJs += "* @param {" + $input.type + "} " + $input.name + " - " + $input.description + "`n"
+            $lines += "* @param {" + $input.type + "} " + $input.name + " - " + $input.description
         }
     }
 
     # additional fields
 
-    $vroActionJs += "* @id " + $InputObject.Id + "`n"
-    $vroActionJs += "* @version " + $InputObject.Version + "`n"
-    $vroActionJs += "* @allowedoperations " + $InputObject.AllowedOperations + "`n"
- 
+    $lines += "* @id " + $InputObject.Id
+    $lines += "* @version " + $InputObject.Version
+    $lines += "* @allowedoperations " + $InputObject.AllowedOperations
+
     # compulsory return field
 
-    $vroActionJs += "* @return {" + $InputObject.OutputType + "}" + "`n"
-    $vroActionJs += "*/" + "`n"
+    $lines += "* @return {" + $InputObject.OutputType + "}"
+    $lines += "*/"
 
     # add in function with inputs by name
 
-    $vroActionJs += "function " + $InputObject.Name + "("
-    $vroActionJs += ($InputObject.InputParameters.name) -join ","
-    $vroActionJs += ") {" + "`n"
+    $lines += "function " + $InputObject.Name + "(" + (($InputObject.InputParameters.name) -join ",") + ") {"
     if ($InputObject.Script) {
         foreach ($line in $InputObject.Script.Split("`n")) {
-            $vroActionJs += "`t$line" + "`n"
+            $lines += "`t$line"
         }
     }
-    $vroActionJs += "};"
+    $lines += "};"
 
-    return $vroActionJs
+    return $lines -join "`n"
 }
 
 function ConvertFrom-VroActionJs {
@@ -400,20 +398,26 @@ function Export-VroActionFile {
         $stream.Dispose()
 
         # export history xml
-        $actionHistory  = "<?xml version='1.0' encoding='UTF-8'?>" + "`n"
-        $actionHistory += "<items>" + "`n"
-        $actionHistory += "</items>" + "`n"
+        $actionHistory = @(
+            "<?xml version='1.0' encoding='UTF-8'?>",
+            "<items>",
+            "</items>",
+            ""
+        ) -join "`n"
         $actionHistory | Set-Content "$compressFolder/action-history" -Encoding bigendianunicode
 
         # export info xml
-        $actionInfo  = "#" + "`n"
-        $actionInfo += "#Wed Jul 24 04:55:53 UTC 2019" + "`n"
-        $actionInfo += "unicode=true" + "`n"
-        $actionInfo += "owner=" + "`n"
-        $actionInfo += "version=2.0" + "`n"
-        $actionInfo += "type=action" + "`n"
-        $actionInfo += "creator=www.dunes.ch" + "`n"
-        $actionInfo += "charset=UTF-16" + "`n"
+        $actionInfo = @(
+            "#",
+            "#Wed Jul 24 04:55:53 UTC 2019",
+            "unicode=true",
+            "owner=",
+            "version=2.0",
+            "type=action",
+            "creator=www.dunes.ch",
+            "charset=UTF-16",
+            ""
+        ) -join "`n"
         $actionInfo | Set-Content "$compressFolder/action-info" -Encoding utf8
 
         # compress the folder
@@ -438,54 +442,59 @@ function ConvertTo-VroActionMd {
 
     # being compiling MD file
 
-    $vroActionMd = "# " + "VRO Action - " + $InputObject.Name + "`n" + "`n"
+    $lines = @("# VRO Action - " + $InputObject.Name, "")
 
     # add in description if available
 
     if ($InputObject.Description){
-        $vroActionMd += "## Description" + "`n" + "`n"
+        $lines += "## Description"
+        $lines += ""
 
         foreach ($line in $InputObject.Description.Split("`n")){
-            $vroActionMd += $line + "`n"
+            $lines += $line
         }
 
-        $vroActionMd += "`n"
+        $lines += ""
     }
 
     # add inputs if available
 
     if ($InputObject.InputParameters){
-        $vroActionMd += "## Inputs" + "`n" + "`n"
+        $lines += "## Inputs"
+        $lines += ""
 
         if ($InputObject.InputParameters){
             foreach ($input in $InputObject.InputParameters) {
-                $vroActionMd += "- [" + $input.type + "]" + $input.name + " : " + $input.description + "`n"
+                $lines += "- [" + $input.type + "]" + $input.name + " : " + $input.description
             }
         }
-        $vroActionMd += "`n"
+        $lines += ""
     }
 
     # Metadata fields
 
-    $vroActionMd += "## Metadata" + "`n" + "`n"
+    $lines += "## Metadata"
+    $lines += ""
 
-    $vroActionMd += "- ID : " + $InputObject.Id + "`n"
-    $vroActionMd += "- Version : " + $InputObject.Version + "`n"
-    $vroActionMd += "- Allowed Operations : " + $InputObject.AllowedOperations + "`n"
-    $vroActionMd += "- Output Type : [" + $InputObject.OutputType + "]" + "`n" + "`n"
-  
+    $lines += "- ID : " + $InputObject.Id
+    $lines += "- Version : " + $InputObject.Version
+    $lines += "- Allowed Operations : " + $InputObject.AllowedOperations
+    $lines += "- Output Type : [" + $InputObject.OutputType + "]"
+    $lines += ""
+
     # add in function with inputs by name
 
-    $vroActionMd += "## Script " + "`n" + "`n"
+    $lines += "## Script "
+    $lines += ""
     if ($InputObject.Script) {
-        $vroActionMd += '```javascript' + "`n"
+        $lines += '```javascript'
         foreach ($line in $InputObject.Script.Split("`n")) {
-            $vroActionMd += "$line" + "`n"
+            $lines += $line
         }
-        $vroActionMd += '```' + "`n"
+        $lines += '```'
     }
 
-    return $vroActionMd
+    return $lines -join "`n"
 }
 
 function Compare-VroActionContents {
