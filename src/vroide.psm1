@@ -130,6 +130,25 @@ function ConvertTo-VroActionJs {
     return $lines -join "`n"
 }
 
+function Get-JsdocMatchProperties {
+    param (
+        [string]$Header,
+        [string]$Pattern
+    )
+    $Header | Select-String -AllMatches -Pattern $Pattern | ForEach-Object {
+        foreach ($MatchItem in $_.Matches) {
+            $props = [ordered]@{}
+            foreach ($group in $MatchItem.Groups) {
+                # skip auto-generated numeric group indices; only keep named groups
+                if (-not ($group.Name -match '^\d+$')) {
+                    $props[$group.Name] = $group.Value
+                }
+            }
+            [PSCustomObject]$props
+        }
+    }
+}
+
 function ConvertFrom-VroActionJs {
     param (
         [Parameter(
@@ -185,57 +204,11 @@ function ConvertFrom-VroActionJs {
 
     $jsdocComments = @()
 
-    $jsdocHeader | Select-String -AllMatches -Pattern $patternInputs  |
-    Foreach-Object {
-            foreach ($MatchItem in $_.Matches){
-                $jsdocComments += [PSCustomObject] @{
-                    jsdoctype = $MatchItem.Groups['jsdoctype'].Value
-                    type = $MatchItem.Groups['type'].Value
-                    name = $MatchItem.Groups['name'].Value
-                    description = $MatchItem.Groups['description'].Value
-                }
-            }
-        }
-
-    $jsdocHeader | Select-String -AllMatches -Pattern $patternReturn |
-    Foreach-Object {
-            foreach ($MatchItem in $_.Matches){
-                $jsdocComments += [PSCustomObject] @{
-                    jsdoctype = $MatchItem.Groups['jsdoctype'].Value
-                    type = $MatchItem.Groups['type'].Value
-                }
-            }
-        }
-
-    $jsdocHeader | Select-String -AllMatches -Pattern $patternId |
-    Foreach-Object {
-            foreach ($MatchItem in $_.Matches){
-                $jsdocComments += [PSCustomObject] @{
-                    jsdoctype = $MatchItem.Groups['jsdoctype'].Value
-                    description = $MatchItem.Groups['description'].Value
-                }
-            }
-        }
-
-    $jsdocHeader | Select-String -AllMatches -Pattern $patternAllowedOperations |
-    Foreach-Object {
-            foreach ($MatchItem in $_.Matches){
-                $jsdocComments += [PSCustomObject] @{
-                    jsdoctype = $MatchItem.Groups['jsdoctype'].Value
-                    description = $MatchItem.Groups['description'].Value
-                }
-            }
-        }
-
-    $jsdocHeader | Select-String -AllMatches -Pattern $patternVersion |
-    Foreach-Object {
-            foreach ($MatchItem in $_.Matches){
-                $jsdocComments += [PSCustomObject] @{
-                    jsdoctype = $MatchItem.Groups['jsdoctype'].Value
-                    description = $MatchItem.Groups['description'].Value
-                }
-            }
-        }
+    $jsdocComments += Get-JsdocMatchProperties -Header $jsdocHeader -Pattern $patternInputs
+    $jsdocComments += Get-JsdocMatchProperties -Header $jsdocHeader -Pattern $patternReturn
+    $jsdocComments += Get-JsdocMatchProperties -Header $jsdocHeader -Pattern $patternId
+    $jsdocComments += Get-JsdocMatchProperties -Header $jsdocHeader -Pattern $patternAllowedOperations
+    $jsdocComments += Get-JsdocMatchProperties -Header $jsdocHeader -Pattern $patternVersion
 
     # Populate vroaction
 
