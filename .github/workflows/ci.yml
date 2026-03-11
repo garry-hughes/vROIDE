@@ -1,0 +1,105 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          $modules = Get-Module -ListAvailable
+          if ($modules.Name -notcontains 'Pester') {
+            Install-Module -Name Pester -Force -SkipPublisherCheck -MinimumVersion 5.0.0 -MaximumVersion 5.99.99
+          }
+
+      - name: Install PowervRO
+        shell: pwsh
+        run: |
+          $modules = Get-Module -ListAvailable
+          if ($modules.Name -notcontains 'PowervRO') {
+            Install-Module -Name PowervRO -Force -SkipPublisherCheck
+          }
+
+      - name: Run Tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = Join-Path $PWD 'tests'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = Join-Path $PWD 'TEST-Pester.xml'
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Pester Results (${{ matrix.os }})
+          path: TEST-Pester.xml
+          reporter: java-junit
+
+  publish:
+    name: Tag & Publish
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Module Version
+        id: version
+        shell: pwsh
+        run: |
+          $manifest = Import-PowerShellDataFile -Path ./src/vroide.psd1
+          $version = $manifest.ModuleVersion
+          Write-Host "Module version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists — skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG is new — will create"
+          fi
+
+      - name: Create and push tag
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Publish to PSGallery
+        if: steps.tag_check.outputs.exists == 'false'
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          Publish-Module -Path ./src -NuGetApiKey $env:NUGET_API_KEY -Verbose
