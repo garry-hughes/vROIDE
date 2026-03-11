@@ -21,8 +21,8 @@ jobs:
       - name: Install Pester
         shell: pwsh
         run: |
-          $modules = Get-Module -ListAvailable
-          if ($modules.Name -notcontains 'Pester') {
+          $pester = Get-Module -ListAvailable -Name Pester | Sort-Object Version -Descending | Select-Object -First 1
+          if (-not $pester -or $pester.Version.Major -lt 5) {
             Install-Module -Name Pester -Force -SkipPublisherCheck -MinimumVersion 5.0.0 -MaximumVersion 5.99.99
           }
 
