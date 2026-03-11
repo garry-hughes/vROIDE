@@ -151,14 +151,14 @@ function ConvertFrom-VroActionJs {
 
     # Regex Extractor
 
-    $patternHeader = '(?smi)\/\*\*\n(\* .*\n)+(\*\/)'
-    $patternDescription = "(\/\*\*\n)(\* [^@\n]*[^@]*)(\n)"
-    $patternBody = "(?smi)^function .*\n(.*\n)*"
-    $patternInputs =  "(?smi)\* @(?<jsdoctype>param) (?<type>[^}]*}) (?<name>\w+) - (?<description>[^\n]*)"
+    $patternHeader = '(?smi)\/\*\*\r?\n(\* .*\r?\n)+(\*\/)'
+    $patternDescription = "(\/\*\*\r?\n)(\* [^@\r\n]*[^@]*)(\r?\n)"
+    $patternBody = "(?smi)^function .*\r?\n(.*\r?\n)*"
+    $patternInputs =  "(?smi)\* @(?<jsdoctype>param) (?<type>[^}]*}) (?<name>\w+) - (?<description>[^\r\n]*)"
     $patternReturn =  "(?smi)\* @(?<jsdoctype>return) (?<type>{[^}]*})"
-    $patternId = "(?smi)\* @(?<jsdoctype>id) (?<description>[^\n]*)"
-    $patternAllowedOperations = "(?smi)\* @(?<jsdoctype>allowedoperations) (?<description>[^\n]*)"
-    $patternVersion = "(?smi)\* @(?<jsdoctype>version) (?<description>[^\n]*)"
+    $patternId = "(?smi)\* @(?<jsdoctype>id) (?<description>[^\r\n]*)"
+    $patternAllowedOperations = "(?smi)\* @(?<jsdoctype>allowedoperations) (?<description>[^\r\n]*)"
+    $patternVersion = "(?smi)\* @(?<jsdoctype>version) (?<description>[^\r\n]*)"
 
     $jsdocBody = ($InputObject | Select-String -Pattern $patternBody | ForEach-Object { $_.Matches.value }).split([System.Environment]::NewLine)
     $vroAction.Name = $jsdocBody[0].split(" ")[1].split("(")[0]
@@ -614,8 +614,13 @@ function Export-VroIde {
         $vroActionHeader = $vroActionHeader -as [VroAction]
         Write-Debug "Expanding Action : $($vroActionHeader.FQN)"
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $actionContentFile = [System.IO.Compression.ZipFile]::OpenRead($vroActionHeader.filePath($workingFolder,"action")).Entries | Where-Object { $_.FullName -eq "action-content"}
-        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($actionContentFile, $vroActionHeader.filePath($workingFolder,"xml"), $true)
+        $zipArchive = [System.IO.Compression.ZipFile]::OpenRead($vroActionHeader.filePath($workingFolder,"action"))
+        try {
+            $actionContentFile = $zipArchive.Entries | Where-Object { $_.FullName -eq "action-content"}
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($actionContentFile, $vroActionHeader.filePath($workingFolder,"xml"), $true)
+        } finally {
+            $zipArchive.Dispose()
+        }
     }
 
     # Import XML convert to jsdoc convert save
@@ -673,12 +678,12 @@ function Import-VroIde {
         $vroActionHeaders = @();
         $modules = Get-ChildItem $vroIdeFolderSrc -Directory
         foreach ($module in $modules){
-            $actions = Get-ChildItem $module
+            $actions = Get-ChildItem $module -Filter '*.js'
             foreach ($action in $actions){
                 Write-Host -ForegroundColor Green $action.name
                 $vroActionHeader = [VroAction]@{
                     Name = $action.basename
-                    FQN = $module.name + "/" + $action.name
+                    FQN = $module.name + "/" + $action.basename
                     Id = New-Guid
                 }
                 $vroActionJs = Get-Content $vroActionHeader.filePath($vroIdeFolderSrc,"js") -Raw

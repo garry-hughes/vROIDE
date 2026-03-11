@@ -21,13 +21,9 @@
 # First we need to import the Get-Planet.ps1 file to make the function
 # Get-Planet available to our test. Notice the . at the start
 # of the line.
-$here = (Split-Path -Parent $MyInvocation.MyCommand.Path)
-. $here\Get-Planet.ps1
-
-# Normally we would use this PowerShell 3 and newer compatible
-# version of the same code, but we need to keep our examples
-# compatible with PowerShell v2.
-# . $PSScriptRoot\Get-Planet.ps1
+BeforeAll {
+    . (Join-Path $PSScriptRoot 'Get-Planet.ps1')
+}
 
 
 # Describe groups tests for easy navigation and overview.
