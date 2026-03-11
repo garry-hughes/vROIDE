@@ -238,8 +238,13 @@ line two]]></description>
                 $script:xmlOutput.'dunes-script-module'.'result-type' | Should -Be 'Array/string'
             }
 
-            It "Root element has api-version set to 6.0.0" {
+            It "Root element has api-version set to 6.0.0 by default" {
                 $script:xmlOutput.'dunes-script-module'.'api-version' | Should -Be '6.0.0'
+            }
+
+            It "Root element uses custom ApiVersion when specified" {
+                $result = ConvertTo-VroActionXml -InputObject $script:standardVroAction -ApiVersion '7.1.0'
+                $result.'dunes-script-module'.'api-version' | Should -Be '7.1.0'
             }
 
             It "Root element has correct id attribute" {
@@ -343,6 +348,61 @@ line two]]></description>
 
             It "Output contains script body inside code fence" {
                 $script:mdOutput | Should -Match 'var x = 1;'
+            }
+        }
+
+        Context "Export-VroActionFile" {
+
+            BeforeAll {
+                $script:exportTestDir = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name ([System.Guid]::NewGuid().ToString())
+                $script:exportXml = ConvertTo-VroActionXml -InputObject $script:standardVroAction
+            }
+
+            AfterAll {
+                if (Test-Path $script:exportTestDir.FullName) {
+                    Remove-Item $script:exportTestDir.FullName -Recurse -Force
+                }
+            }
+
+            It "Produces a .action file in the export folder" {
+                Export-VroActionFile -InputObject $script:exportXml -exportFolder $script:exportTestDir.FullName
+                $actionFile = Join-Path $script:exportTestDir.FullName 'testAction.action'
+                $actionFile | Should -Exist
+            }
+
+            It "action-info contains default creator www.dunes.ch" {
+                $actionFile = Join-Path $script:exportTestDir.FullName 'testAction.action'
+                $tmpExtract = New-Item -Path $script:exportTestDir.FullName -Name 'extract-default' -Type Directory
+                Expand-Archive -Path $actionFile -DestinationPath $tmpExtract.FullName -Force
+                $infoContent = Get-Content (Join-Path $tmpExtract.FullName 'action-info') -Raw
+                $infoContent | Should -Match 'creator=www\.dunes\.ch'
+            }
+
+            It "action-info contains custom creator when specified" {
+                $customDir = New-Item -Path $script:exportTestDir.FullName -Name 'custom-creator' -Type Directory
+                Export-VroActionFile -InputObject $script:exportXml -exportFolder $customDir.FullName -Creator 'custom@example.com'
+                $actionFile = Join-Path $customDir.FullName 'testAction.action'
+                $tmpExtract = New-Item -Path $script:exportTestDir.FullName -Name 'extract-custom' -Type Directory
+                Expand-Archive -Path $actionFile -DestinationPath $tmpExtract.FullName -Force
+                $infoContent = Get-Content (Join-Path $tmpExtract.FullName 'action-info') -Raw
+                $infoContent | Should -Match 'creator=custom@example\.com'
+            }
+
+            It "action-info contains a current-year timestamp" {
+                $actionFile = Join-Path $script:exportTestDir.FullName 'testAction.action'
+                $tmpExtract = New-Item -Path $script:exportTestDir.FullName -Name 'extract-ts' -Type Directory
+                Expand-Archive -Path $actionFile -DestinationPath $tmpExtract.FullName -Force
+                $infoContent = Get-Content (Join-Path $tmpExtract.FullName 'action-info') -Raw
+                $currentYear = (Get-Date).Year.ToString()
+                $infoContent | Should -Match $currentYear
+            }
+
+            It "action-info does not contain the old hardcoded 2019 timestamp" {
+                $actionFile = Join-Path $script:exportTestDir.FullName 'testAction.action'
+                $tmpExtract = New-Item -Path $script:exportTestDir.FullName -Name 'extract-ts2' -Type Directory
+                Expand-Archive -Path $actionFile -DestinationPath $tmpExtract.FullName -Force
+                $infoContent = Get-Content (Join-Path $tmpExtract.FullName 'action-info') -Raw
+                $infoContent | Should -Not -Match '2019'
             }
         }
 
