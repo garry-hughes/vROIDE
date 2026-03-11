@@ -678,12 +678,12 @@ function Import-VroIde {
         $vroActionHeaders = @();
         $modules = Get-ChildItem $vroIdeFolderSrc -Directory
         foreach ($module in $modules){
-            $actions = Get-ChildItem $module
+            $actions = Get-ChildItem $module -Filter '*.js'
             foreach ($action in $actions){
                 Write-Host -ForegroundColor Green $action.name
                 $vroActionHeader = [VroAction]@{
                     Name = $action.basename
-                    FQN = $module.name + "/" + $action.name
+                    FQN = $module.name + "/" + $action.basename
                     Id = New-Guid
                 }
                 $vroActionJs = Get-Content $vroActionHeader.filePath($vroIdeFolderSrc,"js") -Raw
