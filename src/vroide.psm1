@@ -163,10 +163,20 @@ function ConvertFrom-VroActionJs {
     $patternAllowedOperations = "(?smi)\* @(?<jsdoctype>allowedoperations) (?<description>[^\r\n]*)"
     $patternVersion = "(?smi)\* @(?<jsdoctype>version) (?<description>[^\r\n]*)"
 
-    $jsdocBody = ($InputObject | Select-String -Pattern $patternBody | ForEach-Object { $_.Matches.value }).Split("`n")
+    $jsdocHeaderMatch = $InputObject | Select-String $patternHeader -AllMatches
+    if (!$jsdocHeaderMatch){
+        throw "ConvertFrom-VroActionJs: Could not parse JSDoc header. Input must contain a valid JSDoc block starting with '/**' and ending with '*/'."
+    }
+
+    $jsdocBodyMatch = $InputObject | Select-String -Pattern $patternBody
+    if (!$jsdocBodyMatch){
+        throw "ConvertFrom-VroActionJs: Could not parse function body. Input must contain a valid JavaScript function declaration (e.g. 'function name(...) { ... }')."
+    }
+
+    $jsdocBody = ($jsdocBodyMatch | ForEach-Object { $_.Matches.value }).Split("`n")
     $vroAction.Name = $jsdocBody[0].split(" ")[1].split("(")[0]
     $vroAction.Script = ($jsdocBody | Select-Object -Skip 1 | Select-Object -First ($jsdocBody.count - 3) | ForEach-Object { $_ -replace "^\t","" }) -join "`n"
-    $jsdocHeader = $InputObject | Select-String $patternHeader -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1] } | ForEach-Object { $_.Value }
+    $jsdocHeader = $jsdocHeaderMatch | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1] } | ForEach-Object { $_.Value }
     $jsDocDescription = $InputObject | Select-String -Pattern $patternDescription -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[2] } | ForEach-Object { $_.Value }
     $vroAction.Description = $jsDocDescription -replace "(?ms)^\* ",""
 
@@ -555,6 +565,12 @@ function Export-VroIde {
     }
 
     if ($vroIdeFolder){
+        if (!(Test-Path $vroIdeFolder)){
+            throw "vroIdeFolder '$vroIdeFolder' does not exist"
+        }
+        if (!(Get-Item $vroIdeFolder).PSIsContainer){
+            throw "vroIdeFolder '$vroIdeFolder' is not a directory"
+        }
         $vroIdeFolder = Get-Item $vroIdeFolder
     }else{
         Write-Debug "No Folder Provided Generating a Random one"
@@ -669,9 +685,16 @@ function Import-VroIde {
         throw "VRO Connection Required"
     }
 
+    if (!(Test-Path $vroIdeFolder)){
+        throw "vroIdeFolder '$vroIdeFolder' does not exist"
+    }
+    if (!(Get-Item $vroIdeFolder).PSIsContainer){
+        throw "vroIdeFolder '$vroIdeFolder' is not a directory"
+    }
+
     $vroIdeFolderSrc = Join-Path $vroIdeFolder -ChildPath "src"
     if (!(Test-Path $vroIdeFolderSrc)){
-        $null = New-Item -ItemType Directory -Path $vroIdeFolderSrc
+        throw "vroIdeFolder '$vroIdeFolder' does not contain a 'src' directory"
     }
 
     if (!(Test-Path (Join-Path $vroIdeFolderSrc -ChildPath "vroActionHeaders.json"))){

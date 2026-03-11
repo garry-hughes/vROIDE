@@ -139,6 +139,61 @@ InModuleScope -ModuleName vroide -ScriptBlock {
             $result = Compare-VroActionContents -OriginalVroActionFile $actionFile -UpdatedVroActionFile $actionFile
             $result | Should -Be $true
         }
+
+        Context "Export-VroIde input validation" {
+            It "Throws when vroIdeFolder path does not exist" {
+                { Export-VroIde -vroIdeFolder '/nonexistent/path/that/does/not/exist' } |
+                    Should -Throw "*does not exist*"
+            }
+
+            It "Throws when vroIdeFolder path is a file, not a directory" {
+                $tmpFile = New-TemporaryFile
+                try {
+                    { Export-VroIde -vroIdeFolder $tmpFile.FullName } |
+                        Should -Throw "*is not a directory*"
+                } finally {
+                    Remove-Item $tmpFile.FullName -Force
+                }
+            }
+        }
+
+        Context "Import-VroIde input validation" {
+            It "Throws when vroIdeFolder path does not exist" {
+                { Import-VroIde -vroIdeFolder '/nonexistent/path/that/does/not/exist' } |
+                    Should -Throw "*does not exist*"
+            }
+
+            It "Throws when vroIdeFolder path is a file, not a directory" {
+                $tmpFile = New-TemporaryFile
+                try {
+                    { Import-VroIde -vroIdeFolder $tmpFile.FullName } |
+                        Should -Throw "*is not a directory*"
+                } finally {
+                    Remove-Item $tmpFile.FullName -Force
+                }
+            }
+
+            It "Throws when src directory does not exist inside vroIdeFolder" {
+                $tmpDir = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name ([System.Guid]::NewGuid().ToString())
+                try {
+                    { Import-VroIde -vroIdeFolder $tmpDir.FullName } |
+                        Should -Throw "*does not contain a 'src' directory*"
+                } finally {
+                    Remove-Item $tmpDir.FullName -Recurse -Force
+                }
+            }
+
+            It "Throws when vroActionHeaders.json does not exist inside src" {
+                $tmpDir = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name ([System.Guid]::NewGuid().ToString())
+                $null = New-Item -ItemType Directory -Path (Join-Path $tmpDir.FullName 'src')
+                try {
+                    { Import-VroIde -vroIdeFolder $tmpDir.FullName } |
+                        Should -Throw "*vroActionHeaders.json*"
+                } finally {
+                    Remove-Item $tmpDir.FullName -Recurse -Force
+                }
+            }
+        }
     }
 }
 #

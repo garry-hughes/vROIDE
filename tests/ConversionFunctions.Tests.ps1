@@ -203,6 +203,16 @@ line two]]></description>
                 $result  = ConvertFrom-VroActionJs -InputObject $jsCRLF
                 $result.Script | Should -Not -Match "`r`n"
             }
+
+            It "Throws descriptive error when JSDoc header is missing" {
+                $noHeader = "function myAction() {`n`treturn 1;`n};"
+                { ConvertFrom-VroActionJs -InputObject $noHeader } | Should -Throw "*Could not parse JSDoc header*"
+            }
+
+            It "Throws descriptive error when function body is missing" {
+                $noBody = "/**`n* @id 00000000-0000-0000-0000-000000000001`n*/"
+                { ConvertFrom-VroActionJs -InputObject $noBody } | Should -Throw "*Could not parse function body*"
+            }
         }
 
         Context "ConvertTo-VroActionXml" {
