@@ -511,7 +511,7 @@ function Compare-VroActionContents {
     
     # attempt number : dropping the allowed operations VEF - sometimes unpredictable outputs
 
-    $diff = Compare-Object -ReferenceObject $original/action-cont -DifferenceObject $updated/action-content
+    $diff = Compare-Object -ReferenceObject $original/action-content -DifferenceObject $updated/action-content
     $vcfLineEndOriginal = (Get-Content "$original/action-content")[1].Split(" ")[-1].split("=")[0]
 
     if ( ($diff.count -eq 2) -and ( $vcfLineEndOriginal -eq "allowed-operations" ) ){
