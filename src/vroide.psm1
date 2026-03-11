@@ -757,3 +757,30 @@ function Import-VroIde {
         $null = Remove-Item $workingFolder -Recurse -Force -Confirm:$false
     }
 }
+
+function Get-vROAction {
+    [CmdletBinding()]
+    param (
+        [string]$Id
+    )
+    throw "Get-vROAction requires the PowervRO module. Install it with: Install-Module -Name PowervRO"
+}
+
+function Export-vROAction {
+    [CmdletBinding()]
+    param (
+        [string[]]$Id,
+        [string]$Path
+    )
+    throw "Export-vROAction requires the PowervRO module. Install it with: Install-Module -Name PowervRO"
+}
+
+function Import-vROAction {
+    [CmdletBinding()]
+    param (
+        [string[]]$CategoryName,
+        [string[]]$File,
+        [bool]$Override
+    )
+    throw "Import-vROAction requires the PowervRO module. Install it with: Install-Module -Name PowervRO"
+}
