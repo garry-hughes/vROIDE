@@ -175,6 +175,9 @@ function ConvertFrom-VroActionJs {
 
     $jsdocBody = ($jsdocBodyMatch | ForEach-Object { $_.Matches.value }).Split("`n")
     $vroAction.Name = $jsdocBody[0].split(" ")[1].split("(")[0]
+    if ([string]::IsNullOrWhiteSpace($vroAction.Name)){
+        throw "ConvertFrom-VroActionJs: Could not extract function name. The function declaration must include a name (e.g. 'function myAction(...) { ... }')."
+    }
     $vroAction.Script = ($jsdocBody | Select-Object -Skip 1 | Select-Object -First ($jsdocBody.count - 3) | ForEach-Object { $_ -replace "^\t","" }) -join "`n"
     $jsdocHeader = $jsdocHeaderMatch | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1] } | ForEach-Object { $_.Value }
     $jsDocDescription = $InputObject | Select-String -Pattern $patternDescription -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[2] } | ForEach-Object { $_.Value }

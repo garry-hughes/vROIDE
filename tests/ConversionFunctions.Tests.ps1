@@ -213,6 +213,11 @@ line two]]></description>
                 $noBody = "/**`n* @id 00000000-0000-0000-0000-000000000001`n*/"
                 { ConvertFrom-VroActionJs -InputObject $noBody } | Should -Throw "*Could not parse function body*"
             }
+
+            It "Throws descriptive error when function name is missing" {
+                $anonFunc = "/**`n* @id 00000000-0000-0000-0000-000000000001`n*/`nfunction () {`n`treturn 1;`n};"
+                { ConvertFrom-VroActionJs -InputObject $anonFunc } | Should -Throw "*Could not extract function name*"
+            }
         }
 
         Context "ConvertTo-VroActionXml" {
