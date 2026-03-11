@@ -1,0 +1,390 @@
+Import-Module (Join-Path $PSScriptRoot '..' 'src' 'vroide.psm1') -Force
+
+InModuleScope -ModuleName vroide -ScriptBlock {
+    Describe "Conversion Functions" {
+
+        BeforeAll {
+            # Standard VRO action XML used across multiple tests
+            $script:standardActionXml = [xml]@'
+<?xml version="1.0" encoding="UTF-8"?>
+<dunes-script-module name="testAction" result-type="Array/string" api-version="6.0.0" id="af224e48-8421-4f8b-b5ed-8f0de4d8c38c" version="1.2.3" allowed-operations="vef">
+  <description><![CDATA[Test description line one
+line two]]></description>
+  <param n="param1" t="number"><![CDATA[first param]]></param>
+  <param n="param2" t="string"><![CDATA[second param]]></param>
+  <script encoded="false"><![CDATA[var x = 1;]]></script>
+</dunes-script-module>
+'@
+
+            # Standard VroAction with plain (non-brace-wrapped) types, as produced by ConvertFrom-VroActionXml
+            $script:standardVroAction = [VroAction]@{
+                Id                = [guid]'af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+                Name              = 'testAction'
+                Description       = "Test description line one`nline two"
+                Version           = '1.2.3'
+                OutputType        = 'Array/string'
+                AllowedOperations = 'vef'
+                Script            = 'var x = 1;'
+                InputParameters   = @(
+                    [VroActionInput]@{ name = 'param1'; type = 'number'; description = 'first param' },
+                    [VroActionInput]@{ name = 'param2'; type = 'string'; description = 'second param' }
+                )
+            }
+        }
+
+        Context "ConvertFrom-VroActionXml" {
+
+            It "Populates Name from XML attribute" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.Name | Should -Be 'testAction'
+            }
+
+            It "Populates Description from CDATA section" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.Description | Should -Be "Test description line one`nline two"
+            }
+
+            It "Populates OutputType from result-type attribute" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.OutputType | Should -Be 'Array/string'
+            }
+
+            It "Populates Version from version attribute" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.Version | Should -Be '1.2.3'
+            }
+
+            It "Populates Id from id attribute" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.Id | Should -Be 'af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+            }
+
+            It "Populates AllowedOperations from allowed-operations attribute" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.AllowedOperations | Should -Be 'vef'
+            }
+
+            It "Populates Script from script CDATA section" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.Script | Should -Be 'var x = 1;'
+            }
+
+            It "Populates InputParameters with correct count" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.InputParameters.Count | Should -Be 2
+            }
+
+            It "Populates InputParameters with correct names, types and descriptions" {
+                $result = ConvertFrom-VroActionXml -InputObject $script:standardActionXml
+                $result.InputParameters[0].name        | Should -Be 'param1'
+                $result.InputParameters[0].type        | Should -Be 'number'
+                $result.InputParameters[0].description | Should -Be 'first param'
+                $result.InputParameters[1].name        | Should -Be 'param2'
+                $result.InputParameters[1].type        | Should -Be 'string'
+                $result.InputParameters[1].description | Should -Be 'second param'
+            }
+        }
+
+        Context "ConvertTo-VroActionJs" {
+
+            BeforeAll {
+                $script:jsOutput = ConvertTo-VroActionJs -InputObject $script:standardVroAction
+            }
+
+            It "Output starts with JSDoc opening comment marker" {
+                $script:jsOutput | Should -Match '(?m)^/\*\*'
+            }
+
+            It "Output contains description lines in JSDoc header" {
+                $script:jsOutput | Should -Match '\* Test description line one'
+                $script:jsOutput | Should -Match '\* line two'
+            }
+
+            It "Output contains @param entries for each input" {
+                $script:jsOutput | Should -Match '\* @param \{number\} param1 - first param'
+                $script:jsOutput | Should -Match '\* @param \{string\} param2 - second param'
+            }
+
+            It "Output contains @id metadata tag" {
+                $script:jsOutput | Should -Match '\* @id af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+            }
+
+            It "Output contains @version metadata tag" {
+                $script:jsOutput | Should -Match '\* @version 1\.2\.3'
+            }
+
+            It "Output contains @allowedoperations metadata tag" {
+                $script:jsOutput | Should -Match '\* @allowedoperations vef'
+            }
+
+            It "Output contains @return tag with output type" {
+                $script:jsOutput | Should -Match '\* @return \{Array/string\}'
+            }
+
+            It "Output contains JSDoc closing comment marker" {
+                $script:jsOutput | Should -Match '\*/'
+            }
+
+            It "Output contains function signature with correct name and parameters" {
+                $script:jsOutput | Should -Match 'function testAction\(param1,param2\)'
+            }
+
+            It "Output contains script body with tab indentation" {
+                $script:jsOutput | Should -Match "`tvar x = 1;"
+            }
+
+            It "Output ends with function closing brace and semicolon" {
+                $script:jsOutput | Should -Match '};$'
+            }
+
+            It "Output uses LF-only line endings" {
+                $script:jsOutput | Should -Not -Match "`r`n"
+            }
+        }
+
+        Context "ConvertFrom-VroActionJs" {
+
+            BeforeAll {
+                # Build a known JS string that ConvertTo-VroActionJs would produce, then parse it
+                $script:sourceAction = [VroAction]@{
+                    Id                = [guid]'af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+                    Name              = 'roundTripAction'
+                    Description       = "Round-trip description`nsecond line"
+                    Version           = '2.0.1'
+                    OutputType        = 'string'
+                    AllowedOperations = 'evf'
+                    Script            = 'return "hello";'
+                    InputParameters   = @(
+                        [VroActionInput]@{ name = 'inputA'; type = 'number'; description = 'a number input' }
+                    )
+                }
+                $script:sourceJs     = ConvertTo-VroActionJs -InputObject $script:sourceAction
+                $script:parsedAction = ConvertFrom-VroActionJs -InputObject $script:sourceJs
+            }
+
+            It "Extracts correct Name" {
+                $script:parsedAction.Name | Should -Be 'roundTripAction'
+            }
+
+            It "Extracts correct Description" {
+                $script:parsedAction.Description | Should -Be "Round-trip description`nsecond line"
+            }
+
+            It "Extracts correct Version" {
+                $script:parsedAction.Version | Should -Be '2.0.1'
+            }
+
+            It "Extracts correct Id" {
+                $script:parsedAction.Id | Should -Be 'af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+            }
+
+            It "Extracts correct AllowedOperations" {
+                $script:parsedAction.AllowedOperations | Should -Be 'evf'
+            }
+
+            It "Extracts OutputType (wrapped in braces as parsed from JSDoc)" {
+                $script:parsedAction.OutputType | Should -Be '{string}'
+            }
+
+            It "Extracts correct InputParameters count" {
+                $script:parsedAction.InputParameters.Count | Should -Be 1
+            }
+
+            It "Extracts correct InputParameter name" {
+                $script:parsedAction.InputParameters[0].name | Should -Be 'inputA'
+            }
+
+            It "Extracts correct InputParameter description" {
+                $script:parsedAction.InputParameters[0].description | Should -Be 'a number input'
+            }
+
+            It "Normalises CRLF line endings to LF in parsed Script" {
+                $jsCRLF = $script:sourceJs -replace "`n", "`r`n"
+                $result  = ConvertFrom-VroActionJs -InputObject $jsCRLF
+                $result.Script | Should -Not -Match "`r`n"
+            }
+        }
+
+        Context "ConvertTo-VroActionXml" {
+
+            BeforeAll {
+                $script:xmlOutput = ConvertTo-VroActionXml -InputObject $script:standardVroAction
+            }
+
+            It "Returns an XML document with dunes-script-module root element" {
+                $script:xmlOutput.'dunes-script-module' | Should -Not -BeNullOrEmpty
+            }
+
+            It "Root element has correct name attribute" {
+                $script:xmlOutput.'dunes-script-module'.name | Should -Be 'testAction'
+            }
+
+            It "Root element has correct result-type attribute" {
+                $script:xmlOutput.'dunes-script-module'.'result-type' | Should -Be 'Array/string'
+            }
+
+            It "Root element has api-version set to 6.0.0" {
+                $script:xmlOutput.'dunes-script-module'.'api-version' | Should -Be '6.0.0'
+            }
+
+            It "Root element has correct id attribute" {
+                $script:xmlOutput.'dunes-script-module'.id | Should -Be 'af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+            }
+
+            It "Root element has correct version attribute" {
+                $script:xmlOutput.'dunes-script-module'.version | Should -Be '1.2.3'
+            }
+
+            It "Root element has correct allowed-operations attribute" {
+                $script:xmlOutput.'dunes-script-module'.'allowed-operations' | Should -Be 'vef'
+            }
+
+            It "Contains description element with CDATA text" {
+                $script:xmlOutput.'dunes-script-module'.description.'#cdata-section' | Should -Be "Test description line one`nline two"
+            }
+
+            It "Contains correct number of param elements" {
+                $script:xmlOutput.'dunes-script-module'.param.Count | Should -Be 2
+            }
+
+            It "Param elements have correct n and t attributes" {
+                $params = $script:xmlOutput.'dunes-script-module'.param
+                $params[0].n | Should -Be 'param1'
+                $params[0].t | Should -Be 'number'
+                $params[1].n | Should -Be 'param2'
+                $params[1].t | Should -Be 'string'
+            }
+
+            It "Param elements have CDATA descriptions" {
+                $params = $script:xmlOutput.'dunes-script-module'.param
+                $params[0].'#cdata-section' | Should -Be 'first param'
+                $params[1].'#cdata-section' | Should -Be 'second param'
+            }
+
+            It "Contains script element with encoded=false attribute" {
+                $script:xmlOutput.'dunes-script-module'.script.encoded | Should -Be 'false'
+            }
+
+            It "Contains script element with correct CDATA content" {
+                $script:xmlOutput.'dunes-script-module'.script.'#cdata-section' | Should -Match 'var x = 1;'
+            }
+        }
+
+        Context "ConvertTo-VroActionMd" {
+
+            BeforeAll {
+                $script:mdOutput = ConvertTo-VroActionMd -InputObject $script:standardVroAction
+            }
+
+            It "Output starts with H1 title containing action name" {
+                $script:mdOutput | Should -Match '(?m)^# VRO Action - testAction'
+            }
+
+            It "Output contains Description H2 section" {
+                $script:mdOutput | Should -Match '## Description'
+            }
+
+            It "Output contains description text" {
+                $script:mdOutput | Should -Match 'Test description line one'
+            }
+
+            It "Output contains Inputs H2 section" {
+                $script:mdOutput | Should -Match '## Inputs'
+            }
+
+            It "Output contains formatted input parameter entries" {
+                $script:mdOutput | Should -Match '\[number\]param1 : first param'
+                $script:mdOutput | Should -Match '\[string\]param2 : second param'
+            }
+
+            It "Output contains Metadata H2 section" {
+                $script:mdOutput | Should -Match '## Metadata'
+            }
+
+            It "Output contains ID in metadata" {
+                $script:mdOutput | Should -Match 'af224e48-8421-4f8b-b5ed-8f0de4d8c38c'
+            }
+
+            It "Output contains Version in metadata" {
+                $script:mdOutput | Should -Match 'Version : 1\.2\.3'
+            }
+
+            It "Output contains Allowed Operations in metadata" {
+                $script:mdOutput | Should -Match 'Allowed Operations : vef'
+            }
+
+            It "Output contains Output Type in metadata" {
+                $script:mdOutput | Should -Match 'Output Type : \[Array/string\]'
+            }
+
+            It "Output contains Script H2 section" {
+                $script:mdOutput | Should -Match '## Script'
+            }
+
+            It "Output wraps script in javascript code fence" {
+                $script:mdOutput | Should -Match '(?m)^```javascript'
+                $script:mdOutput | Should -Match '(?m)^```$'
+            }
+
+            It "Output contains script body inside code fence" {
+                $script:mdOutput | Should -Match 'var x = 1;'
+            }
+        }
+
+        Context "Compare-VroActionContents" {
+
+            BeforeAll {
+                $script:compareTestDir = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name ([System.Guid]::NewGuid().ToString())
+            }
+
+            AfterAll {
+                if (Test-Path $script:compareTestDir.FullName) {
+                    Remove-Item $script:compareTestDir.FullName -Recurse -Force
+                }
+            }
+
+            It "Returns true when the same action file is compared with itself" {
+                $actionFile = Join-Path $PSScriptRoot 'data' 'standardAction.action'
+                $result = Compare-VroActionContents -OriginalVroActionFile $actionFile -UpdatedVroActionFile $actionFile
+                $result | Should -Be $true
+            }
+
+            It "Returns false when two action files with different content are compared" {
+                # Build two action XML files with different content
+                $action1 = [VroAction]@{
+                    Id                = [guid]::NewGuid()
+                    Name              = 'actionOne'
+                    Description       = 'First action'
+                    Version           = '1.0.0'
+                    OutputType        = 'string'
+                    AllowedOperations = ''
+                    Script            = "return 'one';"
+                }
+                $action2 = [VroAction]@{
+                    Id                = [guid]::NewGuid()
+                    Name              = 'actionTwo'
+                    Description       = 'Second action'
+                    Version           = '2.0.0'
+                    OutputType        = 'string'
+                    AllowedOperations = ''
+                    Script            = "return 'two';"
+                }
+
+                # Create temporary source folders each containing an action-content file
+                $srcDir1 = New-Item -Path $script:compareTestDir.FullName -Name 'src1' -Type Directory
+                $srcDir2 = New-Item -Path $script:compareTestDir.FullName -Name 'src2' -Type Directory
+                (ConvertTo-VroActionXml -InputObject $action1).Save((Join-Path $srcDir1.FullName 'action-content'))
+                (ConvertTo-VroActionXml -InputObject $action2).Save((Join-Path $srcDir2.FullName 'action-content'))
+
+                # Compress each action-content into a .action archive (VRO format)
+                $actionZip1 = Join-Path $script:compareTestDir.FullName 'actionOne.action'
+                $actionZip2 = Join-Path $script:compareTestDir.FullName 'actionTwo.action'
+                Compress-Archive -Path (Join-Path $srcDir1.FullName 'action-content') -DestinationPath $actionZip1
+                Compress-Archive -Path (Join-Path $srcDir2.FullName 'action-content') -DestinationPath $actionZip2
+
+                $result = Compare-VroActionContents -OriginalVroActionFile $actionZip1 -UpdatedVroActionFile $actionZip2
+                $result | Should -Be $false
+            }
+        }
+    }
+}
