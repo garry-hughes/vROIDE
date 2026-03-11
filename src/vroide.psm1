@@ -381,42 +381,46 @@ function Export-VroActionFile {
     # create temporary folder
     $TempDir = [System.Guid]::NewGuid().ToString()
     $tmpWorkingFolder = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name $TempDir
-    $compressFolder = New-Item -Path $tmpWorkingFolder.fullName -Name "$($vroActionXml.'dunes-script-module'.name).action" -Type Directory
+    try {
+        $compressFolder = New-Item -Path $tmpWorkingFolder.fullName -Name "$($vroActionXml.'dunes-script-module'.name).action" -Type Directory
 
-    #code $tmpWorkingFolder
+        #code $tmpWorkingFolder
 
-    # export content xml
-    $vroActionXml.Save("$compressFolder/action-content")
-    $actionContent = get-content "$compressFolder/action-content"
-    $actionContent = $actionContent | ForEach-Object { $_.replace("<?xml version=`"1.0`" encoding=`"UTF-8`"?>","<?xml version='1.0' encoding='UTF-8'?>") }
-    $actionContent | set-content "$compressFolder/action-content" -Encoding bigendianunicode
-    $stream = [IO.File]::OpenWrite("$compressFolder/action-content")
-    $stream.SetLength($stream.Length - ([System.Environment]::NewLine.Length * 2))
-    $stream.Close()
-    $stream.Dispose()
+        # export content xml
+        $vroActionXml.Save("$compressFolder/action-content")
+        $actionContent = get-content "$compressFolder/action-content"
+        $actionContent = $actionContent | ForEach-Object { $_.replace("<?xml version=`"1.0`" encoding=`"UTF-8`"?>","<?xml version='1.0' encoding='UTF-8'?>") }
+        $actionContent | set-content "$compressFolder/action-content" -Encoding bigendianunicode
+        $stream = [IO.File]::OpenWrite("$compressFolder/action-content")
+        $stream.SetLength($stream.Length - ([System.Environment]::NewLine.Length * 2))
+        $stream.Close()
+        $stream.Dispose()
 
-    # export history xml
-    $actionHistory  = "<?xml version='1.0' encoding='UTF-8'?>" + "`n"
-    $actionHistory += "<items>" + "`n"
-    $actionHistory += "</items>" + "`n"
-    $actionHistory | Set-Content "$compressFolder/action-history" -Encoding bigendianunicode
+        # export history xml
+        $actionHistory  = "<?xml version='1.0' encoding='UTF-8'?>" + "`n"
+        $actionHistory += "<items>" + "`n"
+        $actionHistory += "</items>" + "`n"
+        $actionHistory | Set-Content "$compressFolder/action-history" -Encoding bigendianunicode
 
-    # export info xml
-    $actionInfo  = "#" + "`n"
-    $actionInfo += "#Wed Jul 24 04:55:53 UTC 2019" + "`n"
-    $actionInfo += "unicode=true" + "`n"
-    $actionInfo += "owner=" + "`n"
-    $actionInfo += "version=2.0" + "`n"
-    $actionInfo += "type=action" + "`n"
-    $actionInfo += "creator=www.dunes.ch" + "`n"
-    $actionInfo += "charset=UTF-16" + "`n"
-    $actionInfo | Set-Content "$compressFolder/action-info" -Encoding utf8
+        # export info xml
+        $actionInfo  = "#" + "`n"
+        $actionInfo += "#Wed Jul 24 04:55:53 UTC 2019" + "`n"
+        $actionInfo += "unicode=true" + "`n"
+        $actionInfo += "owner=" + "`n"
+        $actionInfo += "version=2.0" + "`n"
+        $actionInfo += "type=action" + "`n"
+        $actionInfo += "creator=www.dunes.ch" + "`n"
+        $actionInfo += "charset=UTF-16" + "`n"
+        $actionInfo | Set-Content "$compressFolder/action-info" -Encoding utf8
 
-    # compress the folder
+        # compress the folder
 
-    #$compressedFolder = Compress-Archive -Path $compressFolder -DestinationPath "$exportFolder/$($vroActionXml.'dunes-script-module'.name).action" #-Force
-    $compressedFolder = [io.compression.zipfile]::CreateFromDirectory($compressFolder, "$exportFolder/$($vroActionXml.'dunes-script-module'.name).action")
-    return $compressedFolder
+        #$compressedFolder = Compress-Archive -Path $compressFolder -DestinationPath "$exportFolder/$($vroActionXml.'dunes-script-module'.name).action" #-Force
+        $compressedFolder = [io.compression.zipfile]::CreateFromDirectory($compressFolder, "$exportFolder/$($vroActionXml.'dunes-script-module'.name).action")
+        return $compressedFolder
+    } finally {
+        $tmpWorkingFolder | Remove-Item -Recurse -Force -Confirm:$false
+    }
 }
 
 function ConvertTo-VroActionMd {
@@ -494,59 +498,61 @@ function Compare-VroActionContents {
     # create temporary folder
     $TempDir = [System.Guid]::NewGuid().ToString()
     $tmpWorkingFolder = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name $TempDir
-    $original = New-Item -Path $tmpWorkingFolder.fullName -Name "original" -Type Directory
-    $updated = New-Item -Path $tmpWorkingFolder.fullName -Name "updated" -Type Directory
+    try {
+        $original = New-Item -Path $tmpWorkingFolder.fullName -Name "original" -Type Directory
+        $updated = New-Item -Path $tmpWorkingFolder.fullName -Name "updated" -Type Directory
 
-    #code $tmpWorkingFolder
+        #code $tmpWorkingFolder
 
-    Expand-Archive -Path $OriginalVroActionFile -DestinationPath $original
-    Expand-Archive -Path $UpdatedVroActionFile -DestinationPath $updated
-
-    ([xml](Get-Content $original/action-content)).Save("$original/action-content")
-    ([xml](Get-Content $updated/action-content)).Save("$updated/action-content")
-
-    $originalFileHash = Get-FileHash -Path $original/action-content
-    $updatedFileHash = Get-FileHash -Path $updated/action-content
-    
-    # finalise
-    
-    Write-Debug $tmpWorkingFolder.fullName
-    Write-Debug $originalFileHash.Hash
-    Write-Debug $updatedFileHash.Hash
-
-    if ($originalFileHash.Hash -eq $updatedFileHash.Hash){
-        $tmpWorkingFolder | Remove-Item -Recurse -Force -Confirm:$false
-        return $true
-    }
-    
-    # attempt number : dropping the allowed operations VEF - sometimes unpredictable outputs
-
-    $diff = Compare-Object -ReferenceObject $original/action-content -DifferenceObject $updated/action-content
-    $vcfLineEndOriginal = (Get-Content "$original/action-content")[1].Split(" ")[-1].split("=")[0]
-
-    if ( ($diff.count -eq 2) -and ( $vcfLineEndOriginal -eq "allowed-operations" ) ){
-        $originalFile = Get-Content $original/action-content
-        $updatedFile = Get-Content $updated/action-content
-
-        $originalFile[1] = $updatedFile[1]
-
-        $originalFile | set-content "$original/action-content" -Encoding bigendianunicode
-        $stream = [IO.File]::OpenWrite("$original/action-content")
-        $stream.SetLength($stream.Length - ([System.Environment]::NewLine.Length * 2))
-        $stream.Close()
-        $stream.Dispose()
+        Expand-Archive -Path $OriginalVroActionFile -DestinationPath $original
+        Expand-Archive -Path $UpdatedVroActionFile -DestinationPath $updated
 
         ([xml](Get-Content $original/action-content)).Save("$original/action-content")
+        ([xml](Get-Content $updated/action-content)).Save("$updated/action-content")
 
         $originalFileHash = Get-FileHash -Path $original/action-content
         $updatedFileHash = Get-FileHash -Path $updated/action-content
+        
+        # finalise
+        
+        Write-Debug $tmpWorkingFolder.fullName
+        Write-Debug $originalFileHash.Hash
+        Write-Debug $updatedFileHash.Hash
 
         if ($originalFileHash.Hash -eq $updatedFileHash.Hash){
-            $tmpWorkingFolder | Remove-Item -Recurse -Force -Confirm:$false
             return $true
         }
+        
+        # attempt number : dropping the allowed operations VEF - sometimes unpredictable outputs
+
+        $diff = Compare-Object -ReferenceObject $original/action-content -DifferenceObject $updated/action-content
+        $vcfLineEndOriginal = (Get-Content "$original/action-content")[1].Split(" ")[-1].split("=")[0]
+
+        if ( ($diff.count -eq 2) -and ( $vcfLineEndOriginal -eq "allowed-operations" ) ){
+            $originalFile = Get-Content $original/action-content
+            $updatedFile = Get-Content $updated/action-content
+
+            $originalFile[1] = $updatedFile[1]
+
+            $originalFile | set-content "$original/action-content" -Encoding bigendianunicode
+            $stream = [IO.File]::OpenWrite("$original/action-content")
+            $stream.SetLength($stream.Length - ([System.Environment]::NewLine.Length * 2))
+            $stream.Close()
+            $stream.Dispose()
+
+            ([xml](Get-Content $original/action-content)).Save("$original/action-content")
+
+            $originalFileHash = Get-FileHash -Path $original/action-content
+            $updatedFileHash = Get-FileHash -Path $updated/action-content
+
+            if ($originalFileHash.Hash -eq $updatedFileHash.Hash){
+                return $true
+            }
+        }
+        return $false
+    } finally {
+        $tmpWorkingFolder | Remove-Item -Recurse -Force -Confirm:$false
     }
-    return $false
 }
 
 function Export-VroIde {
@@ -594,80 +600,82 @@ function Export-VroIde {
 
     $workingFolder = New-Item -ItemType Directory -Path $vroIdeFolderSrc -Name "$([guid]::NewGuid().Guid)".ToUpper()
 
-    $vroActionHeaders = Get-vROAction | Where-Object { $_.FQN -notlike "com.vmware*" }
+    try {
+        $vroActionHeaders = Get-vROAction | Where-Object { $_.FQN -notlike "com.vmware*" }
 
-    # export vro action headers 
+        # export vro action headers 
 
-    $vroActionHeaders | ConvertTo-Json | set-content (Join-Path -Path $vroIdeFolderSrc -ChildPath "vroActionHeaders.json")
+        $vroActionHeaders | ConvertTo-Json | set-content (Join-Path -Path $vroIdeFolderSrc -ChildPath "vroActionHeaders.json")
 
-    # Creating Folders
+        # Creating Folders
 
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Creating Folders : $($vroActionHeader.FQN)"
-        if (!(Test-Path $vroActionHeader.modulePath($workingFolder))){
-            $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($workingFolder)
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Creating Folders : $($vroActionHeader.FQN)"
+            if (!(Test-Path $vroActionHeader.modulePath($workingFolder))){
+                $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($workingFolder)
+            }
+            if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderSrc))){
+                $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderSrc)
+            }
+            if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderDoc))){
+                $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderDoc)
+            }
+            if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderTst))){
+                $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderTst)
+            }
         }
-        if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderSrc))){
-            $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderSrc)
+
+        # Downloading Actions
+
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Downloading Action : $($vroActionHeader.FQN)"
+            $null = Export-vROAction -Id $vroActionHeader.Id -Path $vroActionHeader.modulePath($workingFolder)
         }
-        if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderDoc))){
-            $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderDoc)
+
+        # Expanding Actions
+
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Expanding Action : $($vroActionHeader.FQN)"
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zipArchive = [System.IO.Compression.ZipFile]::OpenRead($vroActionHeader.filePath($workingFolder,"action"))
+            try {
+                $actionContentFile = $zipArchive.Entries | Where-Object { $_.FullName -eq "action-content"}
+                [System.IO.Compression.ZipFileExtensions]::ExtractToFile($actionContentFile, $vroActionHeader.filePath($workingFolder,"xml"), $true)
+            } finally {
+                $zipArchive.Dispose()
+            }
         }
-        if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderTst))){
-            $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderTst)
+
+        # Import XML convert to jsdoc convert save
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Convert from XML to JS and Save for Action : $($vroActionHeader.FQN)"
+            $vroActionXml = [xml](get-content $vroActionHeader.filePath($workingFolder,"xml"))
+            $vroAction = ConvertFrom-VroActionXml -InputObject $vroActionXml
+            $vroAction | ConvertTo-Json -Depth 99 | Set-Content $vroActionHeader.filePath($workingFolder,"json")
+            $vroActionJs = ConvertTo-VroActionJs -InputObject $vroAction
+            [System.IO.File]::WriteAllText($vroActionHeader.filePath($vroIdeFolderSrc,"js"), $vroActionJs, [System.Text.UTF8Encoding]::new($false))
+        }
+
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Convert from JSON to MD and Save for Action : $($vroActionHeader.FQN)"
+            $vroAction = Get-Content $vroActionHeader.filePath($workingFolder,"json") -Raw | ConvertFrom-Json
+            $vroActionMd = ConvertTo-VroActionMd -InputObject $vroAction
+            [System.IO.File]::WriteAllText($vroActionHeader.filePath($vroIdeFolderDoc,"md"), $vroActionMd, [System.Text.UTF8Encoding]::new($false))
+        }
+
+        return $vroIdeFolder
+    } finally {
+        if ($keepWorkingFolder){
+            Write-Debug "Working Folder not deleted : $($workingFolder.FullName)"        
+        }else{
+            $null = Remove-Item $workingFolder -Recurse -Force -Confirm:$false
         }
     }
-
-    # Downloading Actions
-
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Downloading Action : $($vroActionHeader.FQN)"
-        $null = Export-vROAction -Id $vroActionHeader.Id -Path $vroActionHeader.modulePath($workingFolder)
-    }
-
-    # Expanding Actions
-
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Expanding Action : $($vroActionHeader.FQN)"
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $zipArchive = [System.IO.Compression.ZipFile]::OpenRead($vroActionHeader.filePath($workingFolder,"action"))
-        try {
-            $actionContentFile = $zipArchive.Entries | Where-Object { $_.FullName -eq "action-content"}
-            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($actionContentFile, $vroActionHeader.filePath($workingFolder,"xml"), $true)
-        } finally {
-            $zipArchive.Dispose()
-        }
-    }
-
-    # Import XML convert to jsdoc convert save
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Convert from XML to JS and Save for Action : $($vroActionHeader.FQN)"
-        $vroActionXml = [xml](get-content $vroActionHeader.filePath($workingFolder,"xml"))
-        $vroAction = ConvertFrom-VroActionXml -InputObject $vroActionXml
-        $vroAction | ConvertTo-Json -Depth 99 | Set-Content $vroActionHeader.filePath($workingFolder,"json")
-        $vroActionJs = ConvertTo-VroActionJs -InputObject $vroAction
-        [System.IO.File]::WriteAllText($vroActionHeader.filePath($vroIdeFolderSrc,"js"), $vroActionJs, [System.Text.UTF8Encoding]::new($false))
-    }
-
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Convert from JSON to MD and Save for Action : $($vroActionHeader.FQN)"
-        $vroAction = Get-Content $vroActionHeader.filePath($workingFolder,"json") -Raw | ConvertFrom-Json
-        $vroActionMd = ConvertTo-VroActionMd -InputObject $vroAction
-        [System.IO.File]::WriteAllText($vroActionHeader.filePath($vroIdeFolderDoc,"md"), $vroActionMd, [System.Text.UTF8Encoding]::new($false))
-    }
-
-    if ($keepWorkingFolder){
-        Write-Debug "Working Folder not deleted : $($workingFolder.FullName)"        
-    }else{
-        $null = Remove-Item $workingFolder -Recurse -Force -Confirm:$false
-    }
-
-    return $vroIdeFolder
 }
 
 function Import-VroIde {
@@ -722,62 +730,64 @@ function Import-VroIde {
 
     $workingFolder = New-Item -ItemType Directory -Path $vroIdeFolder -Name ([guid]::NewGuid().Guid).ToUpper()
 
-    # Creating Folders
+    try {
+        # Creating Folders
 
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Creating Folders : $($vroActionHeader.FQN)"
-        if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderSrc))){
-            $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderSrc)
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Creating Folders : $($vroActionHeader.FQN)"
+            if (!(Test-Path $vroActionHeader.modulePath($vroIdeFolderSrc))){
+                $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($vroIdeFolderSrc)
+            }
+            if (!(Test-Path $vroActionHeader.modulePath($workingFolder))){
+                $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($workingFolder)
+            }
         }
-        if (!(Test-Path $vroActionHeader.modulePath($workingFolder))){
-            $null = New-Item -ItemType Directory -Path $vroActionHeader.modulePath($workingFolder)
+
+        # Import jsodc convert to xml convert save and export to action
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Convert from XML to JS and Save for Action : $($vroActionHeader.FQN)"
+            $vroActionJs = Get-Content $vroActionHeader.filePath($vroIdeFolderSrc,"js") -Raw
+            $vroAction = ConvertFrom-VroActionJs -InputObject $vroActionJs
+            $vroAction | ConvertTo-Json -Depth 99 | Set-Content $vroActionHeader.filePath($workingFolder,"json")
+            $vroActionXml = ConvertTo-VroActionXml -InputObject $vroAction
+            $vroActionXml.Save($vroActionHeader.filePath($workingFolder,"xml"))
+            Export-VroActionFile -InputObject $vroActionXml -exportFolder $vroActionHeader.modulePath($vroIdeFolderSrc)
         }
-    }
 
-    # Import jsodc convert to xml convert save and export to action
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Convert from XML to JS and Save for Action : $($vroActionHeader.FQN)"
-        $vroActionJs = Get-Content $vroActionHeader.filePath($vroIdeFolderSrc,"js") -Raw
-        $vroAction = ConvertFrom-VroActionJs -InputObject $vroActionJs
-        $vroAction | ConvertTo-Json -Depth 99 | Set-Content $vroActionHeader.filePath($workingFolder,"json")
-        $vroActionXml = ConvertTo-VroActionXml -InputObject $vroAction
-        $vroActionXml.Save($vroActionHeader.filePath($workingFolder,"xml"))
-        Export-VroActionFile -InputObject $vroActionXml -exportFolder $vroActionHeader.modulePath($vroIdeFolderSrc)
-    }
+        # Downloading Actions
 
-    # Downloading Actions
-
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        Write-Debug "Downloading Action : $($vroActionHeader.FQN)"
-        if (Get-vROAction -Id $vroActionHeader.Id -ErrorAction SilentlyContinue){
-            $null = Export-vROAction -Id $vroActionHeader.Id -Path $vroActionHeader.modulePath($workingFolder)
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            Write-Debug "Downloading Action : $($vroActionHeader.FQN)"
+            if (Get-vROAction -Id $vroActionHeader.Id -ErrorAction SilentlyContinue){
+                $null = Export-vROAction -Id $vroActionHeader.Id -Path $vroActionHeader.modulePath($workingFolder)
+            }
         }
-    }
 
-    # Compare and upload on difference
+        # Compare and upload on difference
 
-    foreach ($vroActionHeader in $vroActionHeaders){
-        $vroActionHeader = $vroActionHeader -as [VroAction]
-        if (Test-Path $vroActionHeader.filePath($workingFolder,"action")){
-            $compareResult = Compare-VroActionContents -OriginalVroActionFile $vroActionHeader.filePath($workingFolder,"action") -UpdatedVroActionFile $vroActionHeader.filePath($vroIdeFolderSrc,"action") -Debug
+        foreach ($vroActionHeader in $vroActionHeaders){
+            $vroActionHeader = $vroActionHeader -as [VroAction]
+            if (Test-Path $vroActionHeader.filePath($workingFolder,"action")){
+                $compareResult = Compare-VroActionContents -OriginalVroActionFile $vroActionHeader.filePath($workingFolder,"action") -UpdatedVroActionFile $vroActionHeader.filePath($vroIdeFolderSrc,"action") -Debug
+            }
+            if ($compareResult){
+                Write-Debug "Comparing $($vroActionHeader.Name) : would not be updated - file hash identical"
+            }else{
+                Write-Debug "Comparing $($vroActionHeader.Name) : would be updated - file hash not identical"
+                Import-vROAction -CategoryName $vroActionHeader.FQN.split("/")[0] -File $vroActionHeader.filePath($vroIdeFolderSrc,"action") #-Overwrite -WhatIf
+            }
+            Remove-Item -Path $vroActionHeader.filePath($vroIdeFolderSrc,"action") -Confirm:$false
+            $compareResult = $null
         }
-        if ($compareResult){
-            Write-Debug "Comparing $($vroActionHeader.Name) : would not be updated - file hash identical"
+    } finally {
+        if ($keepWorkingFolder){
+            Write-Debug "Working Folder not deleted : $($workingFolder.FullName)"        
         }else{
-            Write-Debug "Comparing $($vroActionHeader.Name) : would be updated - file hash not identical"
-            Import-vROAction -CategoryName $vroActionHeader.FQN.split("/")[0] -File $vroActionHeader.filePath($vroIdeFolderSrc,"action") #-Overwrite -WhatIf
+            $null = Remove-Item $workingFolder -Recurse -Force -Confirm:$false
         }
-        Remove-Item -Path $vroActionHeader.filePath($vroIdeFolderSrc,"action") -Confirm:$false
-        $compareResult = $null
-    }
-
-    if ($keepWorkingFolder){
-        Write-Debug "Working Folder not deleted : $($workingFolder.FullName)"        
-    }else{
-        $null = Remove-Item $workingFolder -Recurse -Force -Confirm:$false
     }
 }
 
