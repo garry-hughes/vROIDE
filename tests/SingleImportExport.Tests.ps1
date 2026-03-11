@@ -92,6 +92,26 @@ InModuleScope -ModuleName vroide -ScriptBlock {
 
             # Import pipeline should clean up the generated action file after comparison
             $actionHeader.filePath($script:vroIdeFolderSrc, "action") | Should -Not -Exist
+
+            # Locate the working folder created by Import-VroIde (GUID-named dir directly under vroIdeFolder)
+            $workingFolder = Get-ChildItem $script:vroIdeFolder -Directory |
+                Where-Object { $_.Name -as [guid] } |
+                Select-Object -Last 1
+
+            # XML file must exist in the working folder — action was processed
+            $xmlPath = $actionHeader.filePath($workingFolder.FullName, "xml")
+            $xmlPath | Should -Exist
+
+            # XML must be valid and contain the expected action name
+            $xml = [xml](Get-Content $xmlPath -Raw)
+            $xml.'dunes-script-module'.name | Should -Be 'standardAction'
+
+            # XML must have the correct number of input parameters
+            $xml.'dunes-script-module'.param.Count | Should -Be 5
+
+            # Action was downloaded for comparison; identical files must not trigger an upload
+            Should -Invoke Export-vROAction -Times 1 -Exactly -Scope It
+            Should -Invoke Import-vROAction -Times 0 -Exactly -Scope It
         }
         It "ConvertFrom-VroActionJs handles CRLF input — validates Issue #1 fix" {
             $action = [VroAction]@{
