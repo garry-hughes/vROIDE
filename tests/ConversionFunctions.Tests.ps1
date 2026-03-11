@@ -331,6 +331,246 @@ line two]]></description>
             }
         }
 
+        Context "Edge Cases" {
+
+            BeforeAll {
+                # Action with no input parameters
+                $script:noParamsActionXml = [xml]@'
+<?xml version="1.0" encoding="UTF-8"?>
+<dunes-script-module name="noParamsAction" result-type="string" api-version="6.0.0" id="11111111-1111-1111-1111-111111111111" version="1.0.0" allowed-operations="vef">
+  <description><![CDATA[No parameters here]]></description>
+  <script encoded="false"><![CDATA[return "hello";]]></script>
+</dunes-script-module>
+'@
+                $script:noParamsVroAction = [VroAction]@{
+                    Id                = [guid]'11111111-1111-1111-1111-111111111111'
+                    Name              = 'noParamsAction'
+                    Description       = 'No parameters here'
+                    Version           = '1.0.0'
+                    OutputType        = 'string'
+                    AllowedOperations = 'vef'
+                    Script            = 'return "hello";'
+                    InputParameters   = @()
+                }
+
+                # Action with no description
+                $script:noDescActionXml = [xml]@'
+<?xml version="1.0" encoding="UTF-8"?>
+<dunes-script-module name="noDescAction" result-type="void" api-version="6.0.0" id="22222222-2222-2222-2222-222222222222" version="0.1.0" allowed-operations="vef">
+  <param n="input1" t="string"><![CDATA[a string]]></param>
+  <script encoded="false"><![CDATA[System.log(input1);]]></script>
+</dunes-script-module>
+'@
+                $script:noDescVroAction = [VroAction]@{
+                    Id                = [guid]'22222222-2222-2222-2222-222222222222'
+                    Name              = 'noDescAction'
+                    Description       = ''
+                    Version           = '0.1.0'
+                    OutputType        = 'void'
+                    AllowedOperations = 'vef'
+                    Script            = 'System.log(input1);'
+                    InputParameters   = @(
+                        [VroActionInput]@{ name = 'input1'; type = 'string'; description = 'a string' }
+                    )
+                }
+
+                # Action with multi-line description (3 lines)
+                $script:multiLineDescActionXml = [xml]@'
+<?xml version="1.0" encoding="UTF-8"?>
+<dunes-script-module name="multiLineDescAction" result-type="boolean" api-version="6.0.0" id="33333333-3333-3333-3333-333333333333" version="3.2.1" allowed-operations="vef">
+  <description><![CDATA[Line one
+Line two
+Line three]]></description>
+  <script encoded="false"><![CDATA[return true;]]></script>
+</dunes-script-module>
+'@
+                $script:multiLineDescVroAction = [VroAction]@{
+                    Id                = [guid]'33333333-3333-3333-3333-333333333333'
+                    Name              = 'multiLineDescAction'
+                    Description       = "Line one`nLine two`nLine three"
+                    Version           = '3.2.1'
+                    OutputType        = 'boolean'
+                    AllowedOperations = 'vef'
+                    Script            = 'return true;'
+                    InputParameters   = @()
+                }
+
+                # Action with special characters in description and parameter descriptions
+                $script:specialCharsActionXml = [xml]@'
+<?xml version="1.0" encoding="UTF-8"?>
+<dunes-script-module name="specialCharsAction" result-type="string" api-version="6.0.0" id="44444444-4444-4444-4444-444444444444" version="1.0.0" allowed-operations="vef">
+  <description><![CDATA[Uses <tags> & "quotes" -- special chars]]></description>
+  <param n="param1" t="string"><![CDATA[value with <angle> & "quotes"]]></param>
+  <script encoded="false"><![CDATA[return param1;]]></script>
+</dunes-script-module>
+'@
+                $script:specialCharsVroAction = [VroAction]@{
+                    Id                = [guid]'44444444-4444-4444-4444-444444444444'
+                    Name              = 'specialCharsAction'
+                    Description       = 'Uses <tags> & "quotes" -- special chars'
+                    Version           = '1.0.0'
+                    OutputType        = 'string'
+                    AllowedOperations = 'vef'
+                    Script            = 'return param1;'
+                    InputParameters   = @(
+                        [VroActionInput]@{ name = 'param1'; type = 'string'; description = 'value with <angle> & "quotes"' }
+                    )
+                }
+
+                # Action with no script body
+                $script:noScriptActionXml = [xml]@'
+<?xml version="1.0" encoding="UTF-8"?>
+<dunes-script-module name="noScriptAction" result-type="void" api-version="6.0.0" id="55555555-5555-5555-5555-555555555555" version="1.0.0" allowed-operations="vef">
+  <description><![CDATA[An action with no script body]]></description>
+  <param n="input1" t="number"><![CDATA[a number]]></param>
+</dunes-script-module>
+'@
+                $script:noScriptVroAction = [VroAction]@{
+                    Id                = [guid]'55555555-5555-5555-5555-555555555555'
+                    Name              = 'noScriptAction'
+                    Description       = 'An action with no script body'
+                    Version           = '1.0.0'
+                    OutputType        = 'void'
+                    AllowedOperations = 'vef'
+                    Script            = ''
+                    InputParameters   = @(
+                        [VroActionInput]@{ name = 'input1'; type = 'number'; description = 'a number' }
+                    )
+                }
+            }
+
+            Context "ConvertFrom-VroActionXml" {
+
+                It "Returns empty InputParameters for action with no params" {
+                    $result = ConvertFrom-VroActionXml -InputObject $script:noParamsActionXml
+                    $result.InputParameters.Count | Should -Be 0
+                }
+
+                It "Returns empty Description for action with no description element" {
+                    $result = ConvertFrom-VroActionXml -InputObject $script:noDescActionXml
+                    $result.Description | Should -BeNullOrEmpty
+                }
+
+                It "Preserves all lines of a multi-line description" {
+                    $result = ConvertFrom-VroActionXml -InputObject $script:multiLineDescActionXml
+                    $result.Description | Should -Be "Line one`nLine two`nLine three"
+                }
+
+                It "Preserves special characters in description CDATA" {
+                    $result = ConvertFrom-VroActionXml -InputObject $script:specialCharsActionXml
+                    $result.Description | Should -Be 'Uses <tags> & "quotes" -- special chars'
+                }
+
+                It "Preserves special characters in input parameter description CDATA" {
+                    $result = ConvertFrom-VroActionXml -InputObject $script:specialCharsActionXml
+                    $result.InputParameters[0].description | Should -Be 'value with <angle> & "quotes"'
+                }
+
+                It "Returns empty Script for action with no script element" {
+                    $result = ConvertFrom-VroActionXml -InputObject $script:noScriptActionXml
+                    $result.Script | Should -BeNullOrEmpty
+                }
+            }
+
+            Context "ConvertTo-VroActionJs" {
+
+                It "Produces empty parameter list in function signature for action with no inputs" {
+                    $result = ConvertTo-VroActionJs -InputObject $script:noParamsVroAction
+                    $result | Should -Match 'function noParamsAction\(\)'
+                }
+
+                It "Omits @param entries from JSDoc for action with no inputs" {
+                    $result = ConvertTo-VroActionJs -InputObject $script:noParamsVroAction
+                    $result | Should -Not -Match '@param'
+                }
+
+                It "Omits description lines from JSDoc for action with no description" {
+                    $result = ConvertTo-VroActionJs -InputObject $script:noDescVroAction
+                    $result | Should -Match ('/\*\*' + "`n" + '\* @param')
+                }
+
+                It "Includes all lines of a multi-line description in JSDoc" {
+                    $result = ConvertTo-VroActionJs -InputObject $script:multiLineDescVroAction
+                    $result | Should -Match '\* Line one'
+                    $result | Should -Match '\* Line two'
+                    $result | Should -Match '\* Line three'
+                }
+
+                It "Preserves special characters in JSDoc description" {
+                    $result = ConvertTo-VroActionJs -InputObject $script:specialCharsVroAction
+                    $result | Should -Match ([regex]::Escape('Uses <tags> & "quotes" -- special chars'))
+                }
+
+                It "Produces function with empty body for action with no script" {
+                    $result = ConvertTo-VroActionJs -InputObject $script:noScriptVroAction
+                    $result | Should -Match ('function noScriptAction\(input1\) \{' + "`n" + '\};')
+                }
+            }
+
+            Context "ConvertTo-VroActionXml" {
+
+                It "Produces no param elements for action with no inputs" {
+                    $result = ConvertTo-VroActionXml -InputObject $script:noParamsVroAction
+                    $result.'dunes-script-module'.param | Should -BeNullOrEmpty
+                }
+
+                It "Produces no description element for action with no description" {
+                    $result = ConvertTo-VroActionXml -InputObject $script:noDescVroAction
+                    $result.'dunes-script-module'.description | Should -BeNullOrEmpty
+                }
+
+                It "Preserves multi-line description as CDATA in description element" {
+                    $result = ConvertTo-VroActionXml -InputObject $script:multiLineDescVroAction
+                    $result.'dunes-script-module'.description.'#cdata-section' | Should -Be "Line one`nLine two`nLine three"
+                }
+
+                It "Preserves special characters in description CDATA" {
+                    $result = ConvertTo-VroActionXml -InputObject $script:specialCharsVroAction
+                    $result.'dunes-script-module'.description.'#cdata-section' | Should -Be 'Uses <tags> & "quotes" -- special chars'
+                }
+
+                It "Preserves special characters in param description CDATA" {
+                    $result = ConvertTo-VroActionXml -InputObject $script:specialCharsVroAction
+                    $result.'dunes-script-module'.param.'#cdata-section' | Should -Be 'value with <angle> & "quotes"'
+                }
+
+                It "Produces no script element for action with no script body" {
+                    $result = ConvertTo-VroActionXml -InputObject $script:noScriptVroAction
+                    $result.'dunes-script-module'.script | Should -BeNullOrEmpty
+                }
+            }
+
+            Context "ConvertTo-VroActionMd" {
+
+                It "Omits Inputs section for action with no input parameters" {
+                    $result = ConvertTo-VroActionMd -InputObject $script:noParamsVroAction
+                    $result | Should -Not -Match '## Inputs'
+                }
+
+                It "Omits Description section for action with no description" {
+                    $result = ConvertTo-VroActionMd -InputObject $script:noDescVroAction
+                    $result | Should -Not -Match '## Description'
+                }
+
+                It "Includes all lines of a multi-line description in Markdown output" {
+                    $result = ConvertTo-VroActionMd -InputObject $script:multiLineDescVroAction
+                    $result | Should -Match 'Line one'
+                    $result | Should -Match 'Line two'
+                    $result | Should -Match 'Line three'
+                }
+
+                It "Preserves special characters in Markdown description" {
+                    $result = ConvertTo-VroActionMd -InputObject $script:specialCharsVroAction
+                    $result | Should -Match ([regex]::Escape('Uses <tags> & "quotes" -- special chars'))
+                }
+
+                It "Omits script code fence for action with no script body" {
+                    $result = ConvertTo-VroActionMd -InputObject $script:noScriptVroAction
+                    $result | Should -Not -Match '```javascript'
+                }
+            }
+        }
+
         Context "Compare-VroActionContents" {
 
             BeforeAll {
