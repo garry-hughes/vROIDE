@@ -47,6 +47,9 @@ InModuleScope -ModuleName vroide -ScriptBlock {
 
         BeforeEach {
             # Clean up working folders (GUID-named dirs) left by Export-VroIde
+            # Force .NET to release file handles before cleanup (Windows file-locking)
+            [GC]::Collect()
+            [GC]::WaitForPendingFinalizers()
             Get-ChildItem $script:vroIdeFolderSrc -Directory | Where-Object { $_.Name -as [guid] } | Remove-Item -Recurse -Force
 
             foreach ($vroActionHeader in $script:vroActionHeaders){

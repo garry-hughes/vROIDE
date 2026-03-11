@@ -41,7 +41,7 @@ jobs:
           $config.Run.Path = Join-Path $PWD 'tests'
           $config.TestResult.Enabled = $true
           $config.TestResult.OutputPath = Join-Path $PWD 'TEST-Pester.xml'
-          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.TestResult.OutputFormat = 'JUnitXml'
           $config.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $config
 
@@ -51,7 +51,7 @@ jobs:
         with:
           name: Pester Results (${{ matrix.os }})
           path: TEST-Pester.xml
-          reporter: dotnet-nunit
+          reporter: java-junit
 
   publish:
     name: Tag & Publish
