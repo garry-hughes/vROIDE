@@ -151,9 +151,9 @@ function ConvertFrom-VroActionJs {
 
     # Regex Extractor
 
-    $patternHeader = '(?smi)\/\*\*\n(\* .*\n)+(\*\/)'
-    $patternDescription = "(\/\*\*\n)(\* [^@\n]*[^@]*)(\n)"
-    $patternBody = "(?smi)^function .*\n(.*\n)*"
+    $patternHeader = '(?smi)\/\*\*\r?\n(\* .*\r?\n)+(\*\/)'
+    $patternDescription = "(\/\*\*\r?\n)(\* [^@\r\n]*[^@]*)(\r?\n)"
+    $patternBody = "(?smi)^function .*\r?\n(.*\r?\n)*"
     $patternInputs =  "(?smi)\* @(?<jsdoctype>param) (?<type>[^}]*}) (?<name>\w+) - (?<description>[^\r\n]*)"
     $patternReturn =  "(?smi)\* @(?<jsdoctype>return) (?<type>{[^}]*})"
     $patternId = "(?smi)\* @(?<jsdoctype>id) (?<description>[^\r\n]*)"

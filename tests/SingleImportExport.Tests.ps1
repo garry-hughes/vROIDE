@@ -26,14 +26,7 @@ InModuleScope -ModuleName vroide -ScriptBlock {
                     [Parameter(Mandatory = $false)]
                     [string]$path
                 )
-                Write-Debug "Mock Export-vROAction called with Id='$Id' path='$path'"
-                Write-Debug "Available header IDs: $(($script:vroActionHeaders | ForEach-Object { $_.id }) -join ', ')"
                 $vroActionHeader = ($script:vroActionHeaders | Where-Object { $_.id -eq $Id }) -as [VroAction]
-                Write-Debug "Matched header: $($vroActionHeader | ConvertTo-Json -Compress -Depth 1 -ErrorAction SilentlyContinue)"
-                if ($null -eq $vroActionHeader) {
-                    Write-Debug "WARNING: No header matched for Id='$Id'"
-                    return $null
-                }
                 Copy-Item -Path $vroActionHeader.filePath($script:vroIdeFolderSrc,"action") -Destination $path
                 $vroActionFile = Get-Item $path
                 return $vroActionFile
