@@ -69,11 +69,55 @@ InModuleScope -ModuleName vroide -ScriptBlock {
 
         It "Exports VRO Environment" {
             Export-VroIde -Debug -keepWorkingFolder:$true -vroIdeFolder $script:vroIdeFolder.FullName
-            2 | Should -Be 2
+
+            $actionHeader = $script:vroActionHeaders -as [VroAction]
+            $jsPath = $actionHeader.filePath($script:vroIdeFolderSrc, "js")
+
+            # JS file should be created by Export
+            $jsPath | Should -Exist
+
+            # JS file must use LF-only line endings — validates Issue #1 cross-platform newline fix
+            $jsText = [System.IO.File]::ReadAllText($jsPath)
+            $jsText | Should -Not -Match "\r\n"
+
+            # Round-trip: JS should parse back to a VroAction with the correct properties
+            $vroAction = ConvertFrom-VroActionJs -InputObject $jsText
+            $vroAction.Name | Should -Be "standardAction"
+            $vroAction.InputParameters.Count | Should -Be 5
         }
         It "Imports VRO Environment" {
             Import-VroIde -Debug -keepWorkingFolder:$true -vroIdeFolder $script:vroIdeFolder.FullName
-            3 | Should -Be 3
+
+            $actionHeader = $script:vroActionHeaders -as [VroAction]
+
+            # Import pipeline should clean up the generated action file after comparison
+            $actionHeader.filePath($script:vroIdeFolderSrc, "action") | Should -Not -Exist
+        }
+        It "ConvertFrom-VroActionJs handles CRLF input — validates Issue #1 fix" {
+            $action = [VroAction]@{
+                Name         = "testAction"
+                Description  = "line one`nline two"
+                Script       = "var x = 1;"
+                OutputType   = "string"
+                Version      = "1.0.0"
+                AllowedOperations = "vef,evf,vf"  # VRO operation identifiers: view/edit/fetch
+            }
+
+            # Build a JS string with LF endings then inject CRLF to mimic Windows output
+            $jsLF   = ConvertTo-VroActionJs -InputObject $action
+            $jsCRLF = $jsLF -replace "`n", "`r`n"
+
+            # ConvertFrom-VroActionJs normalises CRLF → LF at entry; should parse cleanly
+            $result = ConvertFrom-VroActionJs -InputObject $jsCRLF
+            $result.Name | Should -Be "testAction"
+            $result.Script | Should -Not -Match "\r\n"
+        }
+        It "Compare-VroActionContents returns true for identical action files — validates Issue #2 fix" {
+            $actionFile = Join-Path $PSScriptRoot 'data' 'standardAction.action'
+
+            # Same file compared against itself must always be identical
+            $result = Compare-VroActionContents -OriginalVroActionFile $actionFile -UpdatedVroActionFile $actionFile
+            $result | Should -Be $true
         }
     }
 }
