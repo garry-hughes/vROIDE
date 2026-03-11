@@ -27,7 +27,7 @@ InModuleScope -ModuleName vroide -ScriptBlock {
                     [string]$path
                 )
                 $vroActionHeader = ($script:vroActionHeaders | Where-Object { $_.id -eq $Id }) -as [VroAction]
-                Move-Item -Path $vroActionHeader.filePath($script:vroIdeFolderSrc,"action") -Destination $path
+                Copy-Item -Path $vroActionHeader.filePath($script:vroIdeFolderSrc,"action") -Destination $path
                 $vroActionFile = Get-Item $path
                 return $vroActionFile
             }
@@ -46,9 +46,15 @@ InModuleScope -ModuleName vroide -ScriptBlock {
         }
 
         BeforeEach {
+            # Clean up working folders (GUID-named dirs) left by Export-VroIde
+            Get-ChildItem $script:vroIdeFolderSrc -Directory | Where-Object { $_.Name -as [guid] } | Remove-Item -Recurse -Force
+
             foreach ($vroActionHeader in $script:vroActionHeaders){
                 $vroActionHeader = $vroActionHeader -as [VroAction]
-                $null = Copy-Item -Path (Join-Path $PSScriptRoot 'data' "$($vroActionHeader.Name).action") -Destination $vroActionHeader.modulePath($script:vroIdeFolderSrc)
+                # Only copy .action file if no .js file exists (avoids duplicates for Import)
+                if (-not (Test-Path $vroActionHeader.filePath($script:vroIdeFolderSrc, "js"))) {
+                    $null = Copy-Item -Path (Join-Path $PSScriptRoot 'data' "$($vroActionHeader.Name).action") -Destination $vroActionHeader.modulePath($script:vroIdeFolderSrc)
+                }
             }
         }
 
