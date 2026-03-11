@@ -88,13 +88,13 @@ function ConvertTo-VroActionJs {
 
     # being compiling JS file
 
-    $vroActionJs = "/**" + [System.Environment]::NewLine
+    $vroActionJs = "/**" + "`n"
 
     # add in description if available
 
     if ($InputObject.Description){
-        foreach ($line in $InputObject.Description.split([System.Environment]::NewLine)){
-            $vroActionJs += "* " + $line + [System.Environment]::NewLine
+        foreach ($line in $InputObject.Description.Split("`n")){
+            $vroActionJs += "* " + $line + "`n"
         }
     }
 
@@ -102,29 +102,29 @@ function ConvertTo-VroActionJs {
 
     if ($InputObject.InputParameters){
         foreach ($input in $InputObject.InputParameters) {
-            $vroActionJs += "* @param {" + $input.type + "} " + $input.name + " - " + $input.description + [System.Environment]::NewLine
+            $vroActionJs += "* @param {" + $input.type + "} " + $input.name + " - " + $input.description + "`n"
         }
     }
 
     # additional fields
 
-    $vroActionJs += "* @id " + $InputObject.Id + [System.Environment]::NewLine
-    $vroActionJs += "* @version " + $InputObject.Version + [System.Environment]::NewLine
-    $vroActionJs += "* @allowedoperations " + $InputObject.AllowedOperations + [System.Environment]::NewLine
+    $vroActionJs += "* @id " + $InputObject.Id + "`n"
+    $vroActionJs += "* @version " + $InputObject.Version + "`n"
+    $vroActionJs += "* @allowedoperations " + $InputObject.AllowedOperations + "`n"
  
     # compulsory return field
 
-    $vroActionJs += "* @return {" + $InputObject.OutputType + "}" + [System.Environment]::NewLine
-    $vroActionJs += "*/" + [System.Environment]::NewLine
+    $vroActionJs += "* @return {" + $InputObject.OutputType + "}" + "`n"
+    $vroActionJs += "*/" + "`n"
 
     # add in function with inputs by name
 
     $vroActionJs += "function " + $InputObject.Name + "("
     $vroActionJs += ($InputObject.InputParameters.name) -join ","
-    $vroActionJs += ") {" + [System.Environment]::NewLine
+    $vroActionJs += ") {" + "`n"
     if ($InputObject.Script) {
-        foreach ($line in $InputObject.Script.split([System.Environment]::NewLine)) {
-            $vroActionJs += "`t$line" + [System.Environment]::NewLine
+        foreach ($line in $InputObject.Script.Split("`n")) {
+            $vroActionJs += "`t$line" + "`n"
         }
     }
     $vroActionJs += "};"
@@ -149,6 +149,9 @@ function ConvertFrom-VroActionJs {
 
     $vroAction = [VroAction]::new();
 
+    # Normalise line endings to LF
+    $InputObject = $InputObject -replace "\r\n", "`n" -replace "\r", "`n"
+
     # Regex Extractor
 
     $patternHeader = '(?smi)\/\*\*\r?\n(\* .*\r?\n)+(\*\/)'
@@ -160,9 +163,9 @@ function ConvertFrom-VroActionJs {
     $patternAllowedOperations = "(?smi)\* @(?<jsdoctype>allowedoperations) (?<description>[^\r\n]*)"
     $patternVersion = "(?smi)\* @(?<jsdoctype>version) (?<description>[^\r\n]*)"
 
-    $jsdocBody = ($InputObject | Select-String -Pattern $patternBody | ForEach-Object { $_.Matches.value }).split([System.Environment]::NewLine)
+    $jsdocBody = ($InputObject | Select-String -Pattern $patternBody | ForEach-Object { $_.Matches.value }).Split("`n")
     $vroAction.Name = $jsdocBody[0].split(" ")[1].split("(")[0]
-    $vroAction.Script = ($jsdocBody | Select-Object -Skip 1 | Select-Object -First ($jsdocBody.count - 3) | ForEach-Object { $_ -replace "^\t","" }) -join [System.Environment]::NewLine
+    $vroAction.Script = ($jsdocBody | Select-Object -Skip 1 | Select-Object -First ($jsdocBody.count - 3) | ForEach-Object { $_ -replace "^\t","" }) -join "`n"
     $jsdocHeader = $InputObject | Select-String $patternHeader -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[1] } | ForEach-Object { $_.Value }
     $jsDocDescription = $InputObject | Select-String -Pattern $patternDescription -AllMatches | ForEach-Object { $_.Matches } | ForEach-Object { $_.Groups[2] } | ForEach-Object { $_.Value }
     $vroAction.Description = $jsDocDescription -replace "(?ms)^\* ",""
@@ -378,25 +381,25 @@ function Export-VroActionFile {
     $actionContent = $actionContent | ForEach-Object { $_.replace("<?xml version=`"1.0`" encoding=`"UTF-8`"?>","<?xml version='1.0' encoding='UTF-8'?>") }
     $actionContent | set-content "$compressFolder/action-content" -Encoding bigendianunicode
     $stream = [IO.File]::OpenWrite("$compressFolder/action-content")
-    $stream.SetLength($stream.Length - 2)
+    $stream.SetLength($stream.Length - ([System.Environment]::NewLine.Length * 2))
     $stream.Close()
     $stream.Dispose()
 
     # export history xml
-    $actionHistory  = "<?xml version='1.0' encoding='UTF-8'?>" + [System.Environment]::NewLine
-    $actionHistory += "<items>" + [System.Environment]::NewLine
-    $actionHistory += "</items>" + [System.Environment]::NewLine
+    $actionHistory  = "<?xml version='1.0' encoding='UTF-8'?>" + "`n"
+    $actionHistory += "<items>" + "`n"
+    $actionHistory += "</items>" + "`n"
     $actionHistory | Set-Content "$compressFolder/action-history" -Encoding bigendianunicode
 
     # export info xml
-    $actionInfo  = "#" + [System.Environment]::NewLine
-    $actionInfo += "#Wed Jul 24 04:55:53 UTC 2019" + [System.Environment]::NewLine
-    $actionInfo += "unicode=true" + [System.Environment]::NewLine
-    $actionInfo += "owner=" + [System.Environment]::NewLine
-    $actionInfo += "version=2.0" + [System.Environment]::NewLine
-    $actionInfo += "type=action" + [System.Environment]::NewLine
-    $actionInfo += "creator=www.dunes.ch" + [System.Environment]::NewLine
-    $actionInfo += "charset=UTF-16" + [System.Environment]::NewLine
+    $actionInfo  = "#" + "`n"
+    $actionInfo += "#Wed Jul 24 04:55:53 UTC 2019" + "`n"
+    $actionInfo += "unicode=true" + "`n"
+    $actionInfo += "owner=" + "`n"
+    $actionInfo += "version=2.0" + "`n"
+    $actionInfo += "type=action" + "`n"
+    $actionInfo += "creator=www.dunes.ch" + "`n"
+    $actionInfo += "charset=UTF-16" + "`n"
     $actionInfo | Set-Content "$compressFolder/action-info" -Encoding utf8
 
     # compress the folder
@@ -418,51 +421,51 @@ function ConvertTo-VroActionMd {
 
     # being compiling MD file
 
-    $vroActionMd = "# " + "VRO Action - " + $InputObject.Name + [System.Environment]::NewLine + [System.Environment]::NewLine
+    $vroActionMd = "# " + "VRO Action - " + $InputObject.Name + "`n" + "`n"
 
     # add in description if available
 
     if ($InputObject.Description){
-        $vroActionMd += "## Description" + [System.Environment]::NewLine + [System.Environment]::NewLine
+        $vroActionMd += "## Description" + "`n" + "`n"
 
-        foreach ($line in $InputObject.Description.split([System.Environment]::NewLine)){
-            $vroActionMd += $line + [System.Environment]::NewLine
+        foreach ($line in $InputObject.Description.Split("`n")){
+            $vroActionMd += $line + "`n"
         }
 
-        $vroActionMd += [System.Environment]::NewLine
+        $vroActionMd += "`n"
     }
 
     # add inputs if available
 
     if ($InputObject.InputParameters){
-        $vroActionMd += "## Inputs" + [System.Environment]::NewLine + [System.Environment]::NewLine
+        $vroActionMd += "## Inputs" + "`n" + "`n"
 
         if ($InputObject.InputParameters){
             foreach ($input in $InputObject.InputParameters) {
-                $vroActionMd += "- [" + $input.type + "]" + $input.name + " : " + $input.description + [System.Environment]::NewLine
+                $vroActionMd += "- [" + $input.type + "]" + $input.name + " : " + $input.description + "`n"
             }
         }
-        $vroActionMd += [System.Environment]::NewLine
+        $vroActionMd += "`n"
     }
 
     # Metadata fields
 
-    $vroActionMd += "## Metadata" + [System.Environment]::NewLine + [System.Environment]::NewLine
+    $vroActionMd += "## Metadata" + "`n" + "`n"
 
-    $vroActionMd += "- ID : " + $InputObject.Id + [System.Environment]::NewLine
-    $vroActionMd += "- Version : " + $InputObject.Version + [System.Environment]::NewLine
-    $vroActionMd += "- Allowed Operations : " + $InputObject.AllowedOperations + [System.Environment]::NewLine
-    $vroActionMd += "- Output Type : [" + $InputObject.OutputType + "]" + [System.Environment]::NewLine + [System.Environment]::NewLine
+    $vroActionMd += "- ID : " + $InputObject.Id + "`n"
+    $vroActionMd += "- Version : " + $InputObject.Version + "`n"
+    $vroActionMd += "- Allowed Operations : " + $InputObject.AllowedOperations + "`n"
+    $vroActionMd += "- Output Type : [" + $InputObject.OutputType + "]" + "`n" + "`n"
   
     # add in function with inputs by name
 
-    $vroActionMd += "## Script " + [System.Environment]::NewLine + [System.Environment]::NewLine
+    $vroActionMd += "## Script " + "`n" + "`n"
     if ($InputObject.Script) {
-        $vroActionMd += '```javascript' + [System.Environment]::NewLine
-        foreach ($line in $InputObject.Script.split([System.Environment]::NewLine)) {
-            $vroActionMd += "$line" + [System.Environment]::NewLine
+        $vroActionMd += '```javascript' + "`n"
+        foreach ($line in $InputObject.Script.Split("`n")) {
+            $vroActionMd += "$line" + "`n"
         }
-        $vroActionMd += '```' + [System.Environment]::NewLine
+        $vroActionMd += '```' + "`n"
     }
 
     return $vroActionMd
@@ -519,7 +522,7 @@ function Compare-VroActionContents {
 
         $originalFile | set-content "$original/action-content" -Encoding bigendianunicode
         $stream = [IO.File]::OpenWrite("$original/action-content")
-        $stream.SetLength($stream.Length - 2)
+        $stream.SetLength($stream.Length - ([System.Environment]::NewLine.Length * 2))
         $stream.Close()
         $stream.Dispose()
 
