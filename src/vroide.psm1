@@ -276,7 +276,9 @@ function ConvertTo-VroActionXml {
         param (
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNull()]
-        [VroAction]$inputObject
+        [VroAction]$inputObject,
+        [Parameter()]
+        [string]$ApiVersion = "6.0.0"
     )
     # move as many tests as possible up to the top
     # consider output type - currently this script will be null, but maybe it should be the jsdoc path
@@ -294,7 +296,7 @@ function ConvertTo-VroActionXml {
     $null = $xmlElt.Attributes.Append($att)
 
     $att = $vroActionXml.CreateAttribute("api-version")
-    $att.Value = "6.0.0"
+    $att.Value = $ApiVersion
     $null = $xmlElt.Attributes.Append($att)
 
     $att = $vroActionXml.CreateAttribute("id")
@@ -372,23 +374,25 @@ function Export-VroActionFile {
             ValueFromPipelineByPropertyName = $true
         )]
         [ValidateNotNull()]
-        [string[]]$InputObject,
+        [xml]$InputObject,
         [Parameter(
             ValueFromPipelineByPropertyName = $true
         )]
-        [string]$exportFolder        
+        [string]$exportFolder,
+        [Parameter()]
+        [string]$Creator = "www.dunes.ch"
     )
 
     # create temporary folder
     $TempDir = [System.Guid]::NewGuid().ToString()
     $tmpWorkingFolder = New-Item -Path (New-TemporaryFile).DirectoryName -Type Directory -Name $TempDir
     try {
-        $compressFolder = New-Item -Path $tmpWorkingFolder.fullName -Name "$($vroActionXml.'dunes-script-module'.name).action" -Type Directory
+        $compressFolder = New-Item -Path $tmpWorkingFolder.fullName -Name "$($InputObject.'dunes-script-module'.name).action" -Type Directory
 
         #code $tmpWorkingFolder
 
         # export content xml
-        $vroActionXml.Save("$compressFolder/action-content")
+        $InputObject.Save("$compressFolder/action-content")
         $actionContent = get-content "$compressFolder/action-content"
         $actionContent = $actionContent | ForEach-Object { $_.replace("<?xml version=`"1.0`" encoding=`"UTF-8`"?>","<?xml version='1.0' encoding='UTF-8'?>") }
         $actionContent | set-content "$compressFolder/action-content" -Encoding bigendianunicode
@@ -407,14 +411,15 @@ function Export-VroActionFile {
         $actionHistory | Set-Content "$compressFolder/action-history" -Encoding bigendianunicode
 
         # export info xml
+        $timestamp = (Get-Date).ToUniversalTime().ToString("ddd MMM dd HH:mm:ss 'UTC' yyyy")
         $actionInfo = @(
             "#",
-            "#Wed Jul 24 04:55:53 UTC 2019",
+            "#$timestamp",
             "unicode=true",
             "owner=",
             "version=2.0",
             "type=action",
-            "creator=www.dunes.ch",
+            "creator=$Creator",
             "charset=UTF-16",
             ""
         ) -join "`n"
@@ -422,8 +427,8 @@ function Export-VroActionFile {
 
         # compress the folder
 
-        #$compressedFolder = Compress-Archive -Path $compressFolder -DestinationPath "$exportFolder/$($vroActionXml.'dunes-script-module'.name).action" #-Force
-        $compressedFolder = [io.compression.zipfile]::CreateFromDirectory($compressFolder, "$exportFolder/$($vroActionXml.'dunes-script-module'.name).action")
+        #$compressedFolder = Compress-Archive -Path $compressFolder -DestinationPath "$exportFolder/$($InputObject.'dunes-script-module'.name).action" #-Force
+        $compressedFolder = [io.compression.zipfile]::CreateFromDirectory($compressFolder, "$exportFolder/$($InputObject.'dunes-script-module'.name).action")
         return $compressedFolder
     } finally {
         $tmpWorkingFolder | Remove-Item -Recurse -Force -Confirm:$false
