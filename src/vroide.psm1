@@ -634,7 +634,7 @@ function Export-VroIde {
         $vroAction = ConvertFrom-VroActionXml -InputObject $vroActionXml
         $vroAction | ConvertTo-Json -Depth 99 | Set-Content $vroActionHeader.filePath($workingFolder,"json")
         $vroActionJs = ConvertTo-VroActionJs -InputObject $vroAction
-        $vroActionJs | set-content $vroActionHeader.filePath($vroIdeFolderSrc,"js")
+        [System.IO.File]::WriteAllText($vroActionHeader.filePath($vroIdeFolderSrc,"js"), $vroActionJs, [System.Text.UTF8Encoding]::new($false))
     }
 
     foreach ($vroActionHeader in $vroActionHeaders){
@@ -642,7 +642,7 @@ function Export-VroIde {
         Write-Debug "Convert from JSON to MD and Save for Action : $($vroActionHeader.FQN)"
         $vroAction = Get-Content $vroActionHeader.filePath($workingFolder,"json") -Raw | ConvertFrom-Json
         $vroActionMd = ConvertTo-VroActionMd -InputObject $vroAction
-        $vroActionMd | set-content $vroActionHeader.filePath($vroIdeFolderDoc,"md")
+        [System.IO.File]::WriteAllText($vroActionHeader.filePath($vroIdeFolderDoc,"md"), $vroActionMd, [System.Text.UTF8Encoding]::new($false))
     }
 
     if ($keepWorkingFolder){
