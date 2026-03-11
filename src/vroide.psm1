@@ -614,8 +614,13 @@ function Export-VroIde {
         $vroActionHeader = $vroActionHeader -as [VroAction]
         Write-Debug "Expanding Action : $($vroActionHeader.FQN)"
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $actionContentFile = [System.IO.Compression.ZipFile]::OpenRead($vroActionHeader.filePath($workingFolder,"action")).Entries | Where-Object { $_.FullName -eq "action-content"}
-        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($actionContentFile, $vroActionHeader.filePath($workingFolder,"xml"), $true)
+        $zipArchive = [System.IO.Compression.ZipFile]::OpenRead($vroActionHeader.filePath($workingFolder,"action"))
+        try {
+            $actionContentFile = $zipArchive.Entries | Where-Object { $_.FullName -eq "action-content"}
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($actionContentFile, $vroActionHeader.filePath($workingFolder,"xml"), $true)
+        } finally {
+            $zipArchive.Dispose()
+        }
     }
 
     # Import XML convert to jsdoc convert save
