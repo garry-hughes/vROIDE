@@ -1,6 +1,4 @@
-BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '..' 'src' 'vroide.psm1') -Force
-}
+Import-Module (Join-Path $PSScriptRoot '..' 'src' 'vroide.psm1') -Force
 
 InModuleScope -ModuleName vroide -ScriptBlock {
     Describe "Export VRO IDE" {
