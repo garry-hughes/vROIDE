@@ -51,7 +51,7 @@ jobs:
         with:
           name: Pester Results (${{ matrix.os }})
           path: TEST-Pester.xml
-          reporter: java-junit
+          reporter: dotnet-nunit
 
   publish:
     name: Tag & Publish
