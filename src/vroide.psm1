@@ -154,11 +154,11 @@ function ConvertFrom-VroActionJs {
     $patternHeader = '(?smi)\/\*\*\n(\* .*\n)+(\*\/)'
     $patternDescription = "(\/\*\*\n)(\* [^@\n]*[^@]*)(\n)"
     $patternBody = "(?smi)^function .*\n(.*\n)*"
-    $patternInputs =  "(?smi)\* @(?<jsdoctype>param) (?<type>[^}]*}) (?<name>\w+) - (?<description>[^\n]*)"
+    $patternInputs =  "(?smi)\* @(?<jsdoctype>param) (?<type>[^}]*}) (?<name>\w+) - (?<description>[^\r\n]*)"
     $patternReturn =  "(?smi)\* @(?<jsdoctype>return) (?<type>{[^}]*})"
-    $patternId = "(?smi)\* @(?<jsdoctype>id) (?<description>[^\n]*)"
-    $patternAllowedOperations = "(?smi)\* @(?<jsdoctype>allowedoperations) (?<description>[^\n]*)"
-    $patternVersion = "(?smi)\* @(?<jsdoctype>version) (?<description>[^\n]*)"
+    $patternId = "(?smi)\* @(?<jsdoctype>id) (?<description>[^\r\n]*)"
+    $patternAllowedOperations = "(?smi)\* @(?<jsdoctype>allowedoperations) (?<description>[^\r\n]*)"
+    $patternVersion = "(?smi)\* @(?<jsdoctype>version) (?<description>[^\r\n]*)"
 
     $jsdocBody = ($InputObject | Select-String -Pattern $patternBody | ForEach-Object { $_.Matches.value }).split([System.Environment]::NewLine)
     $vroAction.Name = $jsdocBody[0].split(" ")[1].split("(")[0]
