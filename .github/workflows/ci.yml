@@ -5,6 +5,10 @@ on:
     branches: [master]
   push:
     branches: [master]
+    tags:
+      - 'v*'
+      - '[0-9]*'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -57,7 +61,7 @@ jobs:
     name: Tag & Publish
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     steps:
@@ -78,17 +82,23 @@ jobs:
       - name: Check if tag exists
         id: tag_check
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+          # When triggered by a tag push the tag already exists; always publish
+          if [[ "${{ github.ref }}" =~ ^refs/tags/ ]]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG already exists — skipping"
+            echo "Triggered by tag push — skipping tag creation"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG is new — will create"
+            TAG="v${{ steps.version.outputs.version }}"
+            if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+              echo "Tag $TAG already exists — skipping"
+            else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+              echo "Tag $TAG is new — will create"
+            fi
           fi
 
       - name: Create and push tag
-        if: steps.tag_check.outputs.exists == 'false'
+        if: "!startsWith(github.ref, 'refs/tags/') && steps.tag_check.outputs.exists == 'false'"
         run: |
           TAG="v${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
@@ -97,7 +107,7 @@ jobs:
           git push origin "$TAG"
 
       - name: Publish to PSGallery
-        if: steps.tag_check.outputs.exists == 'false'
+        if: startsWith(github.ref, 'refs/tags/') || steps.tag_check.outputs.exists == 'false'
         shell: pwsh
         env:
           NUGET_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
