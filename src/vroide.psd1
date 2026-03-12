@@ -107,16 +107,16 @@ PrivateData = @{
         Tags = @('VRO', "javascript", "VMware", "vRealize")
 
         # A URL to the license for this module.
-        LicenseUri = 'https://github.com/greenscript-net/vROIDE/blob/master/LICENSE'
+        LicenseUri = 'https://github.com/garry-hughes/vROIDE/blob/master/LICENSE'
 
         # A URL to the main website for this project.
-        ProjectUri = 'https://github.com/greenscript-net/vROIDE'
+        ProjectUri = 'https://github.com/garry-hughes/vROIDE'
 
         # A URL to an icon representing this module.
         # IconUri = ''
 
         # ReleaseNotes of this module
-        ReleaseNotes = 'https://github.com/greenscript-net/vROIDE/blob/master/RELEASE.md'
+        ReleaseNotes = 'https://github.com/garry-hughes/vROIDE/blob/master/RELEASE.md'
 
     } # End of PSData hashtable
 
