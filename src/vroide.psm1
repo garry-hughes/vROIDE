@@ -28,6 +28,22 @@ Class VroAction {
 }
 
 function ConvertFrom-VroActionXml {
+    <#
+    .SYNOPSIS
+        Converts a vRealize Orchestrator action XML document into a VroAction object.
+    .DESCRIPTION
+        Parses a vRO 'dunes-script-module' XML document and returns a VroAction object
+        populated with the action's name, description, ID, version, output type,
+        input parameters, script body, and allowed-operations flag.
+    .PARAMETER InputObject
+        An [xml] document representing the vRO action definition. Typically loaded
+        from an extracted 'action-content' file inside a .action archive.
+    .EXAMPLE
+        $xml = [xml](Get-Content 'myAction.xml')
+        ConvertFrom-VroActionXml -InputObject $xml
+    .EXAMPLE
+        [xml](Get-Content 'myAction.xml') | ConvertFrom-VroActionXml
+    #>
     param (
         [Parameter(
             Mandatory = $true,
@@ -77,6 +93,23 @@ function ConvertFrom-VroActionXml {
 }
 
 function ConvertTo-VroActionJs {
+    <#
+    .SYNOPSIS
+        Converts a VroAction object into a JavaScript file with JSDoc metadata.
+    .DESCRIPTION
+        Produces a .js file where the action's metadata (ID, version, parameters,
+        output type, description) is embedded as a JSDoc block above the function
+        body. The output is suitable for editing in any JavaScript-aware IDE and
+        can be round-tripped back to XML via ConvertFrom-VroActionJs.
+    .PARAMETER InputObject
+        The VroAction object to convert.
+    .EXAMPLE
+        $xml = [xml](Get-Content 'myAction.xml')
+        $action = ConvertFrom-VroActionXml -InputObject $xml
+        ConvertTo-VroActionJs -InputObject $action
+    .EXAMPLE
+        ConvertFrom-VroActionXml -InputObject $xml | ConvertTo-VroActionJs
+    #>
     param (
         [Parameter(
             Mandatory = $true,
@@ -150,6 +183,22 @@ function Get-JsdocMatchProperties {
 }
 
 function ConvertFrom-VroActionJs {
+    <#
+    .SYNOPSIS
+        Converts a JavaScript file containing JSDoc metadata back into a VroAction object.
+    .DESCRIPTION
+        Parses a .js file produced by ConvertTo-VroActionJs. Extracts the action's
+        ID, version, input parameters, output type, description, and script body from
+        the JSDoc block and the function declaration. Throws if the JSDoc header or
+        function body cannot be parsed, or if no function name is found.
+    .PARAMETER InputObject
+        The content of a .js file as a string or string array.
+    .EXAMPLE
+        $js = Get-Content 'myModule/myAction.js' -Raw
+        ConvertFrom-VroActionJs -InputObject $js
+    .EXAMPLE
+        Get-Content 'myModule/myAction.js' -Raw | ConvertFrom-VroActionJs
+    #>
     param (
         [Parameter(
             Mandatory = $true,
@@ -246,6 +295,24 @@ function ConvertFrom-VroActionJs {
 }
 
 function ConvertTo-VroActionXml {
+    <#
+    .SYNOPSIS
+        Converts a VroAction object into a vRealize Orchestrator action XML document.
+    .DESCRIPTION
+        Builds a 'dunes-script-module' XML document from a VroAction object, suitable
+        for saving as the 'action-content' entry inside a .action archive. Input
+        parameters, description, allowed-operations, and the script body are all
+        written to the XML in the format expected by vRO.
+    .PARAMETER InputObject
+        The VroAction object to serialise to XML.
+    .PARAMETER ApiVersion
+        The api-version attribute written to the root element. Defaults to '6.0.0'.
+    .EXAMPLE
+        $action = ConvertFrom-VroActionJs -InputObject (Get-Content 'myAction.js' -Raw)
+        ConvertTo-VroActionXml -InputObject $action
+    .EXAMPLE
+        ConvertFrom-VroActionJs -InputObject $js | ConvertTo-VroActionXml -ApiVersion '6.0.0'
+    #>
         param (
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNull()]
@@ -341,6 +408,28 @@ function ConvertTo-VroActionXml {
 }
 
 function Export-VroActionFile {
+    <#
+    .SYNOPSIS
+        Packages a vRO action XML document into a .action archive file.
+    .DESCRIPTION
+        Creates the 'action-content', 'action-history', and 'action-info' entries
+        required by vRealize Orchestrator and compresses them into a ZIP-based
+        .action file. The archive is written to the specified export folder.
+        A temporary working directory is used and cleaned up automatically.
+    .PARAMETER InputObject
+        An [xml] document representing the vRO action, as returned by
+        ConvertTo-VroActionXml.
+    .PARAMETER exportFolder
+        Path to the folder where the .action file should be written.
+    .PARAMETER Creator
+        The creator string written to the action-info metadata file.
+        Defaults to 'www.dunes.ch'.
+    .EXAMPLE
+        $xml = ConvertTo-VroActionXml -InputObject $action
+        Export-VroActionFile -InputObject $xml -exportFolder 'C:\output'
+    .EXAMPLE
+        ConvertTo-VroActionXml -InputObject $action | Export-VroActionFile -exportFolder '/tmp/output'
+    #>
     param (
         [Parameter(
             Mandatory = $true,
@@ -409,6 +498,22 @@ function Export-VroActionFile {
 }
 
 function ConvertTo-VroActionMd {
+    <#
+    .SYNOPSIS
+        Converts a VroAction object into a Markdown documentation file.
+    .DESCRIPTION
+        Generates a Markdown document describing the vRO action, including its
+        description, input parameters (name, type, description), metadata
+        (ID, version, allowed operations, output type), and the full script body
+        in a fenced code block.
+    .PARAMETER InputObject
+        The VroAction object to document.
+    .EXAMPLE
+        $action = ConvertFrom-VroActionXml -InputObject ([xml](Get-Content 'myAction.xml'))
+        ConvertTo-VroActionMd -InputObject $action
+    .EXAMPLE
+        ConvertFrom-VroActionXml -InputObject $xml | ConvertTo-VroActionMd
+    #>
     param (
         [Parameter(
             Mandatory = $true,
@@ -476,6 +581,26 @@ function ConvertTo-VroActionMd {
 }
 
 function Compare-VroActionContents {
+    <#
+    .SYNOPSIS
+        Compares two .action archive files by their normalised content hash.
+    .DESCRIPTION
+        Extracts both .action archives to a temporary folder, normalises their
+        'action-content' XML via the .NET XML parser (to eliminate cosmetic
+        differences), and compares the resulting file hashes. Returns $true if the
+        files are functionally identical, $false if they differ.
+        Handles a known vRO quirk where the 'allowed-operations' attribute can vary
+        unpredictably: if the only difference is that attribute it is excluded from
+        the comparison and the hashes are re-evaluated.
+    .PARAMETER OriginalVroActionFile
+        Path to the .action archive currently on the vRO server (downloaded locally).
+    .PARAMETER UpdatedVroActionFile
+        Path to the .action archive generated from the locally edited .js file.
+    .OUTPUTS
+        [bool] $true if the actions are functionally identical; $false if they differ.
+    .EXAMPLE
+        Compare-VroActionContents -OriginalVroActionFile 'server.action' -UpdatedVroActionFile 'local.action'
+    #>
     param (
         [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNull()]
@@ -546,6 +671,35 @@ function Compare-VroActionContents {
 }
 
 function Export-VroIde {
+    <#
+    .SYNOPSIS
+        Exports all vRealize Orchestrator actions to an IDE-friendly folder structure.
+    .DESCRIPTION
+        Connects to the vRO server via an active PowervRO session and downloads every
+        non-VMware action. For each action it:
+          1. Exports the .action archive from vRO.
+          2. Extracts and converts the XML to a JavaScript file with JSDoc metadata.
+          3. Writes the .js file to src/<module>/<action>.js.
+          4. Generates a Markdown documentation file at docs/<module>/<action>.md.
+        The output folder is suitable for version control and IDE editing. Run
+        Import-VroIde to push local changes back to vRO.
+        Requires an active vRO connection established with PowervRO's Connect-vROServer.
+    .PARAMETER vroIdeFolder
+        Path to an existing folder that will hold the exported project. Sub-folders
+        'src', 'docs', and 'tests' are created automatically if absent. If omitted,
+        a temporary folder is created and its path is returned.
+    .PARAMETER keepWorkingFolder
+        When specified, the temporary working folder used during export is not deleted.
+        Useful for debugging export issues.
+    .OUTPUTS
+        [System.IO.DirectoryInfo] The resolved vroIdeFolder path.
+    .EXAMPLE
+        Connect-vROServer -Server 'vro.example.com' -Username 'admin' -Password 'P@ssw0rd'
+        Export-VroIde -vroIdeFolder 'C:\Projects\MyVroProject'
+    .EXAMPLE
+        $folder = Export-VroIde
+        # Exports to a generated temp folder; $folder contains the path.
+    #>
     param (
         [Parameter(
             Mandatory = $false
@@ -669,6 +823,29 @@ function Export-VroIde {
 }
 
 function Import-VroIde {
+    <#
+    .SYNOPSIS
+        Imports locally edited vRO action .js files back into vRealize Orchestrator.
+    .DESCRIPTION
+        Scans the 'src' sub-folder of the IDE project for .js files, converts each
+        one from JSDoc-annotated JavaScript back to a vRO XML action, packages it as
+        a .action archive, and uploads it to vRO only if the content has changed
+        (determined via Compare-VroActionContents).
+        Actions whose content is unchanged are skipped to avoid unnecessary API calls.
+        Requires an active vRO connection established with PowervRO's Connect-vROServer.
+    .PARAMETER vroIdeFolder
+        Path to the IDE project folder previously created by Export-VroIde. Must
+        contain a 'src' sub-folder with a 'vroActionHeaders.json' file.
+    .PARAMETER keepWorkingFolder
+        When specified, the temporary working folder used during import is not deleted.
+        Useful for debugging import issues.
+    .EXAMPLE
+        Connect-vROServer -Server 'vro.example.com' -Username 'admin' -Password 'P@ssw0rd'
+        Import-VroIde -vroIdeFolder 'C:\Projects\MyVroProject'
+    .EXAMPLE
+        Import-VroIde -vroIdeFolder 'C:\Projects\MyVroProject' -keepWorkingFolder
+        # Leaves the working folder intact for inspection after the import.
+    #>
     param (
         [Parameter(
             Mandatory = $true
